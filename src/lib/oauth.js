@@ -47,7 +47,7 @@ async function connectGitAccount(gitHost, apiKey) {
 
   // Build authorization URL
   const baseUrl = getApiUrl().replace('/api/v1', ''); // Remove /api/v1 suffix
-  const authUrl = `${baseUrl}/oauth/authorize?git_host=${encodeURIComponent(gitHost)}&session_id=${sessionId}`;
+  const authUrl = `${baseUrl}/oauth/authorize?git_host=${encodeURIComponent(gitHost)}&session_id=${sessionId}&token=${encodeURIComponent(apiKey)}`;
 
   logger.info('Opening browser for authentication...');
   logger.newline();
@@ -89,6 +89,9 @@ async function pollForCompletion(sessionId, apiKey) {
   const maxAttempts = 150; // 5 minutes total (150 * 2s)
 
   const baseUrl = getApiUrl().replace('/api/v1', ''); // Remove /api/v1 suffix
+
+  // Give user time to complete OAuth flow in browser (5 seconds)
+  await sleep(5000);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(pollInterval);
