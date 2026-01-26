@@ -90,8 +90,8 @@ async function pollForCompletion(sessionId, apiKey) {
 
   const baseUrl = getApiUrl().replace('/api/v1', ''); // Remove /api/v1 suffix
 
-  // Give user time to complete OAuth flow in browser (5 seconds)
-  await sleep(5000);
+  // Give user time to complete OAuth flow in browser (60 seconds)
+  await sleep(60000);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(pollInterval);
@@ -119,14 +119,21 @@ async function pollForCompletion(sessionId, apiKey) {
       // Still pending, continue polling
       // Silent polling - spinner shows progress
     } catch (error) {
-      if (error.response?.status === 404) {
-        throw new Error('OAuth session not found or expired');
+      // During polling, 401/404 errors are expected while user completes OAuth in browser
+      // Only fail on other error types or after timeout
+      const status = error.response?.status;
+
+      if (status === 401 || status === 404) {
+        // Session not found yet or not authorized yet - continue polling
+        continue;
       }
+
+      // For other errors (500, network errors, etc.), throw immediately
       throw error;
     }
   }
 
-  throw new Error('OAuth authorization timed out (5 minutes). Please try again.');
+  throw new Error('OAuth authorization timed out (5 minutes). Please complete the authorization in your browser and try again.');
 }
 
 /**
