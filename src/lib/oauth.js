@@ -145,13 +145,14 @@ async function pollForCompletion(sessionId, apiKey) {
  */
 async function getConnection(gitHost, apiKey) {
   try {
+    // Use correct header based on token type
+    const headers = apiKey.startsWith('st_')
+      ? { 'X-Session-Token': apiKey }
+      : { 'X-API-Key': apiKey };
+
     const response = await axios.get(
       `${getApiUrl()}/users/me/oauth`,
-      {
-        headers: {
-          'X-API-Key': apiKey,
-        },
-      }
+      { headers }
     );
 
     const connection = response.data.connections.find(
@@ -170,13 +171,14 @@ async function getConnection(gitHost, apiKey) {
  * @returns {Promise<array>} - Array of connection objects
  */
 async function listConnections(apiKey) {
+  // Use correct header based on token type
+  const headers = apiKey.startsWith('st_')
+    ? { 'X-Session-Token': apiKey }
+    : { 'X-API-Key': apiKey };
+
   const response = await axios.get(
     `${getApiUrl()}/users/me/oauth`,
-    {
-      headers: {
-        'X-API-Key': apiKey,
-      },
-    }
+    { headers }
   );
 
   return response.data.connections || [];
@@ -188,13 +190,14 @@ async function listConnections(apiKey) {
  * @param {string} apiKey - User's API key
  */
 async function revokeConnection(gitHost, apiKey) {
+  // Use correct header based on token type
+  const headers = apiKey.startsWith('st_')
+    ? { 'X-Session-Token': apiKey }
+    : { 'X-API-Key': apiKey };
+
   await axios.delete(
     `${getApiUrl()}/users/me/oauth/${encodeURIComponent(gitHost)}`,
-    {
-      headers: {
-        'X-API-Key': apiKey,
-      },
-    }
+    { headers }
   );
 }
 
