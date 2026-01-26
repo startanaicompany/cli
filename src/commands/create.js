@@ -1,0 +1,325 @@
+/**
+ * Create command - Create a new application
+ */
+
+const api = require('../lib/api');
+const { isAuthenticated, saveProjectConfig, getUser } = require('../lib/config');
+const logger = require('../lib/logger');
+const oauth = require('../lib/oauth');
+const inquirer = require('inquirer');
+
+async function create(name, options) {
+  try {
+    // Check authentication
+    if (!isAuthenticated()) {
+      logger.error('Not logged in');
+      logger.newline();
+      logger.info('Run:');
+      logger.log('  saac login -e <email> -k <api-key>');
+      process.exit(1);
+    }
+
+    // Validate required fields
+    if (!name) {
+      logger.error('Application name is required');
+      logger.newline();
+      logger.info('Usage:');
+      logger.log('  saac create <name> [options]');
+      logger.newline();
+      logger.info('Required options:');
+      logger.log('  -s, --subdomain <subdomain>          Subdomain for your app');
+      logger.log('  -r, --repository <url>               Git repository URL (SSH format)');
+      logger.log('  -t, --git-token <token>              Git API token (optional if OAuth connected)');
+      logger.newline();
+      logger.info('Optional options:');
+      logger.log('  -b, --branch <branch>                Git branch (default: master)');
+      logger.log('  -d, --domain-suffix <suffix>         Domain suffix (default: startanaicompany.com)');
+      logger.log('  -p, --port <port>                    Port to expose (default: 3000)');
+      logger.log('  --build-pack <pack>                  Build pack: dockercompose, nixpacks, dockerfile, static');
+      logger.log('  --install-cmd <command>              Install command (e.g., "pnpm install")');
+      logger.log('  --build-cmd <command>                Build command (e.g., "npm run build")');
+      logger.log('  --start-cmd <command>                Start command (e.g., "node server.js")');
+      logger.log('  --pre-deploy-cmd <command>           Pre-deployment command (e.g., "npm run migrate")');
+      logger.log('  --post-deploy-cmd <command>          Post-deployment command (e.g., "npm run seed")');
+      logger.log('  --health-check                       Enable health checks');
+      logger.log('  --health-path <path>                 Health check path (default: /health)');
+      logger.log('  --health-interval <seconds>          Health check interval in seconds');
+      logger.log('  --health-timeout <seconds>           Health check timeout in seconds');
+      logger.log('  --health-retries <count>             Health check retries (1-10)');
+      logger.log('  --cpu-limit <limit>                  CPU limit (e.g., "1", "2.5")');
+      logger.log('  --memory-limit <limit>               Memory limit (e.g., "512M", "2G")');
+      logger.log('  --env <KEY=VALUE>                    Environment variable (can be used multiple times)');
+      logger.newline();
+      logger.info('Example:');
+      logger.log('  saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git -t abc123');
+      logger.log('  saac create api -s api -r git@git... -t abc123 --build-pack nixpacks --port 8080');
+      logger.log('  saac create web -s web -r git@git... -t abc123 --health-check --pre-deploy-cmd "npm run migrate"');
+      process.exit(1);
+    }
+
+    if (!options.subdomain || !options.repository) {
+      logger.error('Missing required options: subdomain and repository are required');
+      logger.newline();
+      logger.info('Example:');
+      logger.log(`  saac create ${name} -s myapp -r git@git.startanaicompany.com:user/repo.git`);
+      logger.log(`  saac create ${name} -s myapp -r git@git... -t your_token  # With manual token`);
+      process.exit(1);
+    }
+
+    logger.section(`Creating Application: ${name}`);
+    logger.newline();
+
+    // OAuth: Check if user has connected Git account for this repository
+    const user = getUser();
+    const gitHost = oauth.extractGitHost(options.repository);
+    const connection = await oauth.getConnection(gitHost, user.sessionToken || user.apiKey);
+
+    if (connection) {
+      logger.success(`Using connected account: ${connection.gitUsername}@${connection.gitHost}`);
+      logger.newline();
+    } else if (!options.gitToken) {
+      // No OAuth connection AND no manual token provided
+      logger.warn(`Git account not connected for ${gitHost}`);
+      logger.newline();
+
+      const { shouldConnect } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'shouldConnect',
+          message: 'Would you like to connect now?',
+          default: true,
+        },
+      ]);
+
+      if (!shouldConnect) {
+        logger.newline();
+        logger.error('Cannot create application without Git authentication');
+        logger.newline();
+        logger.info('Options:');
+        logger.log('  1. Connect Git account: saac git connect');
+        logger.log('  2. Provide token: saac create ... --git-token <token>');
+        process.exit(1);
+      }
+
+      // Initiate OAuth flow
+      await oauth.connectGitAccount(gitHost, user.sessionToken || user.apiKey);
+
+      logger.newline();
+      logger.section('Continuing with application creation');
+      logger.newline();
+    }
+
+    // Build application payload
+    const appData = {
+      name: name,
+      subdomain: options.subdomain,
+      domain_suffix: options.domainSuffix || 'startanaicompany.com',
+      git_repository: options.repository,
+      git_branch: options.branch || 'master',
+    };
+
+    // Only include git_api_token if provided (OAuth will be used if available)
+    if (options.gitToken) {
+      appData.git_api_token = options.gitToken;
+    }
+
+    // Optional: Port configuration
+    if (options.port) {
+      appData.ports_exposes = options.port;
+    }
+
+    // Optional: Build pack
+    if (options.buildPack) {
+      const validBuildPacks = ['dockercompose', 'nixpacks', 'dockerfile', 'static'];
+      if (!validBuildPacks.includes(options.buildPack)) {
+        logger.error(`Invalid build pack: ${options.buildPack}`);
+        logger.info(`Must be one of: ${validBuildPacks.join(', ')}`);
+        process.exit(1);
+      }
+      appData.build_pack = options.buildPack;
+    }
+
+    // Optional: Custom commands
+    if (options.installCmd) {
+      appData.install_command = options.installCmd;
+    }
+    if (options.buildCmd) {
+      appData.build_command = options.buildCmd;
+    }
+    if (options.startCmd) {
+      appData.start_command = options.startCmd;
+    }
+    if (options.preDeployCmd) {
+      appData.pre_deployment_command = options.preDeployCmd;
+    }
+    if (options.postDeployCmd) {
+      appData.post_deployment_command = options.postDeployCmd;
+    }
+
+    // Optional: Resource limits
+    if (options.cpuLimit) {
+      appData.cpu_limit = options.cpuLimit;
+    }
+    if (options.memoryLimit) {
+      appData.memory_limit = options.memoryLimit;
+    }
+
+    // Optional: Health check configuration
+    if (options.healthCheck) {
+      appData.health_check_enabled = true;
+      if (options.healthPath) {
+        appData.health_check_path = options.healthPath;
+      }
+      if (options.healthInterval) {
+        appData.health_check_interval = parseInt(options.healthInterval, 10);
+      }
+      if (options.healthTimeout) {
+        appData.health_check_timeout = parseInt(options.healthTimeout, 10);
+      }
+      if (options.healthRetries) {
+        const retries = parseInt(options.healthRetries, 10);
+        if (retries < 1 || retries > 10) {
+          logger.error('Health check retries must be between 1 and 10');
+          process.exit(1);
+        }
+        appData.health_check_retries = retries;
+      }
+    }
+
+    // Optional: Environment variables
+    if (options.env) {
+      const envVars = {};
+      const envArray = Array.isArray(options.env) ? options.env : [options.env];
+
+      for (const envStr of envArray) {
+        const [key, ...valueParts] = envStr.split('=');
+        const value = valueParts.join('='); // Handle values with '=' in them
+
+        if (!key || value === undefined) {
+          logger.error(`Invalid environment variable format: ${envStr}`);
+          logger.info('Use format: KEY=VALUE');
+          process.exit(1);
+        }
+
+        envVars[key] = value;
+      }
+
+      if (Object.keys(envVars).length > 50) {
+        logger.error('Maximum 50 environment variables allowed');
+        process.exit(1);
+      }
+
+      appData.environment_variables = envVars;
+    }
+
+    // Show configuration summary
+    logger.info('Configuration:');
+    logger.field('Name', appData.name);
+    logger.field('Subdomain', `${appData.subdomain}.${appData.domain_suffix}`);
+    logger.field('Repository', appData.git_repository);
+    logger.field('Branch', appData.git_branch);
+    if (appData.ports_exposes) {
+      logger.field('Port', appData.ports_exposes);
+    }
+    if (appData.build_pack) {
+      logger.field('Build Pack', appData.build_pack);
+    }
+    if (appData.cpu_limit || appData.memory_limit) {
+      const limits = [];
+      if (appData.cpu_limit) limits.push(`CPU: ${appData.cpu_limit}`);
+      if (appData.memory_limit) limits.push(`Memory: ${appData.memory_limit}`);
+      logger.field('Resource Limits', limits.join(', '));
+      logger.warn('Note: Free tier limited to 1 vCPU, 1024M RAM');
+    }
+    if (appData.health_check_enabled) {
+      logger.field('Health Check', `Enabled on ${appData.health_check_path || '/health'}`);
+    }
+    if (appData.pre_deployment_command) {
+      logger.field('Pre-Deploy Hook', appData.pre_deployment_command);
+    }
+    if (appData.environment_variables) {
+      logger.field('Environment Vars', `${Object.keys(appData.environment_variables).length} variable(s)`);
+    }
+
+    logger.newline();
+
+    const spin = logger.spinner('Creating application...').start();
+
+    try {
+      const result = await api.createApplication(appData);
+
+      spin.succeed('Application created successfully!');
+
+      // Save project configuration
+      saveProjectConfig({
+        applicationUuid: result.coolify_app_uuid,
+        applicationName: result.app_name,
+        subdomain: result.subdomain,
+        domainSuffix: appData.domain_suffix,
+        gitRepository: appData.git_repository,
+      });
+
+      logger.newline();
+      logger.success('Application created!');
+      logger.newline();
+      logger.field('Name', result.app_name);
+      logger.field('Domain', result.domain);
+      logger.field('UUID', result.coolify_app_uuid);
+      logger.field('Status', result.deployment_status);
+      logger.newline();
+
+      // Show next steps
+      if (result.next_steps && result.next_steps.length > 0) {
+        logger.info('Next Steps:');
+        result.next_steps.forEach((step, index) => {
+          logger.log(`  ${index + 1}. ${step}`);
+        });
+        logger.newline();
+      }
+
+      logger.info('Useful commands:');
+      logger.log(`  saac deploy              Deploy your application`);
+      logger.log(`  saac logs --follow       View deployment logs`);
+      logger.log(`  saac status              Check application status`);
+      logger.log(`  saac env set KEY=VALUE   Set environment variables`);
+
+    } catch (error) {
+      spin.fail('Application creation failed');
+
+      if (error.response?.status === 403) {
+        const data = error.response.data;
+        logger.newline();
+        logger.error('Quota exceeded');
+        if (data.current_tier) {
+          logger.field('Current Tier', data.current_tier);
+        }
+        logger.newline();
+        logger.warn(data.error || data.message);
+        if (data.upgrade_info) {
+          logger.info(data.upgrade_info);
+        }
+      } else if (error.response?.status === 400) {
+        const data = error.response.data;
+        logger.newline();
+        logger.error('Validation failed');
+        if (data.details) {
+          logger.newline();
+          Object.entries(data.details).forEach(([field, message]) => {
+            logger.log(`  ${logger.chalk.yellow(field)}: ${message}`);
+          });
+        } else {
+          logger.log(`  ${data.message || data.error}`);
+        }
+      } else {
+        throw error;
+      }
+      process.exit(1);
+    }
+
+  } catch (error) {
+    logger.error(error.response?.data?.message || error.message);
+    process.exit(1);
+  }
+}
+
+module.exports = create;

@@ -1,0 +1,52 @@
+{
+  "name": "@startanaicompany/cli",
+  "version": "1.4.1",
+  "description": "Official CLI for StartAnAiCompany.com - Deploy AI recruitment sites with ease",
+  "main": "src/index.js",
+  "bin": {
+    "saac": "bin/saac.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node bin/saac.js",
+    "lint": "eslint src/"
+  },
+  "keywords": [
+    "saac",
+    "startanaicompany",
+    "deployment",
+    "cli",
+    "ai",
+    "recruitment",
+    "coolify"
+  ],
+  "author": "StartAnAiCompany <support@startanaicompany.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/startanaicompany/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/startanaicompany/cli/issues"
+  },
+  "homepage": "https://github.com/startanaicompany/cli#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "boxen": "^5.1.2",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "conf": "^10.2.0",
+    "dotenv": "^16.3.1",
+    "inquirer": "^8.2.5",
+    "open": "^8.4.2",
+    "ora": "^5.4.1",
+    "table": "^6.8.1",
+    "validator": "^13.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.54.0"
+  }
+}
