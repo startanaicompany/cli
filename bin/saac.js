@@ -28,13 +28,21 @@ const deleteCmd = require('../src/commands/delete');
 const list = require('../src/commands/list');
 const status = require('../src/commands/status');
 const whoami = require('../src/commands/whoami');
+const manual = require('../src/commands/manual');
 
 // Configure CLI
 program
   .name('saac')
   .description(chalk.cyan('Official CLI for StartAnAiCompany.com'))
   .version(pkg.version, '-v, --version', 'Output the current version')
-  .helpOption('-h, --help', 'Display help for command');
+  .helpOption('-h, --help', 'Display help for command')
+  .addHelpText('after', `
+${chalk.dim('For detailed documentation, visit:')}
+  ${chalk.cyan('https://github.com/startanaicompany/cli')}
+
+${chalk.dim('Or run:')}
+  ${chalk.yellow('saac manual')}  ${chalk.dim('- Display full manual from GitHub')}
+`);
 
 // Authentication commands
 program
@@ -234,6 +242,12 @@ program
   .command('whoami')
   .description('Show current user information')
   .action(whoami);
+
+// Documentation
+program
+  .command('manual')
+  .description('Display full documentation from GitHub')
+  .action(manual);
 
 // Deletion
 program
