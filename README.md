@@ -29,10 +29,16 @@ saac register --email user@example.com
 # 2. Verify your email (check MailHog)
 saac verify 123456
 
-# 3. Create a new application
-saac create my-recruitment-site
+# 3. Login with your API key
+saac login -e user@example.com -k cw_your_api_key
 
-# 4. Deploy!
+# 4. Connect your Git account (OAuth)
+saac git connect
+
+# 5. Create a new application
+saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git
+
+# 6. Deploy!
 saac deploy
 ```
 
@@ -40,11 +46,11 @@ saac deploy
 
 ## Git Authentication
 
-SAAC CLI supports two methods for Git authentication:
+SAAC CLI uses **OAuth-only authentication** for Git access. You must connect your Git account before creating applications.
 
-### Method 1: OAuth (Recommended ✨ NEW in 1.4.0)
+### Connect Your Git Account
 
-Connect your Git account once, deploy unlimited applications without providing tokens:
+Connect your Git account once, deploy unlimited applications:
 
 ```bash
 # Connect Git account (interactive)
@@ -65,28 +71,18 @@ saac git disconnect git.startanaicompany.com
 - ✅ No need to remember or copy tokens
 - ✅ Tokens stored encrypted on server
 - ✅ Supports Gitea, GitHub, and GitLab
+- 🔒 More secure than manual tokens
 
 **Creating apps with OAuth:**
 ```bash
-# No token needed if OAuth connected!
+# OAuth connection required!
 saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git
 
 # CLI automatically uses your connected account
 # ✅ Using connected account: username@git.startanaicompany.com
 ```
 
-### Method 2: Manual Token (Fallback)
-
-Provide Git API token for each application:
-
-```bash
-saac create my-app \
-  -s myapp \
-  -r git@git.startanaicompany.com:user/repo.git \
-  -t your_gitea_token_here
-```
-
-**Note:** OAuth automatically takes precedence. Manual tokens are only used as fallback if no OAuth connection exists.
+**⚠️ Important:** You must connect your Git account with `saac git connect` before creating applications. Manual tokens are no longer supported.
 
 ---
 
@@ -216,11 +212,11 @@ saac init
 Create a new application
 
 ```bash
-# Basic application
-saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git -t abc123
+# Basic application (OAuth required!)
+saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git
 
 # Advanced with health checks and migration
-saac create api -s api -r git@git... -t abc123 \
+saac create api -s api -r git@git... \
   --build-pack nixpacks \
   --port 8080 \
   --pre-deploy-cmd "npm run migrate" \
@@ -233,7 +229,9 @@ saac create api -s api -r git@git... -t abc123 \
 - `<name>` - Application name
 - `-s, --subdomain <subdomain>` - Subdomain for your app
 - `-r, --repository <url>` - Git repository URL (SSH format)
-- `-t, --git-token <token>` - Git API token (optional if OAuth connected)
+
+**Prerequisites:**
+- You must connect your Git account first: `saac git connect`
 
 **Optional:**
 - `-b, --branch <branch>` - Git branch (default: master)
@@ -413,20 +411,26 @@ saac register -e dev@company.com
 # Check MailHog for code
 saac verify 123456
 
-# Step 2: Clone or create your project
+# Step 2: Login
+saac login -e dev@company.com -k cw_your_api_key
+
+# Step 3: Connect your Git account (OAuth)
+saac git connect
+
+# Step 4: Clone or create your project
 git clone git@git.startanaicompany.com:user/mysite.git
 cd mysite
 
-# Step 3: Initialize SAAC
-saac init --subdomain mycompany
+# Step 5: Create application
+saac create mysite -s mysite -r git@git.startanaicompany.com:user/mysite.git
 
-# Step 4: Deploy
+# Step 6: Deploy
 saac deploy
 
-# Step 5: View logs
+# Step 7: View logs
 saac logs --follow
 
-# Step 6: Update environment variables
+# Step 8: Update environment variables
 saac env set COMPANY_NAME="My Company"
 saac deploy  # Redeploy to apply changes
 ```
@@ -448,7 +452,13 @@ saac env set CONTACT_EMAIL="contact@acme.com"
 
 ### "Not logged in"
 ```bash
-saac login
+saac login -e your@email.com -k cw_your_api_key
+```
+
+### "Git account not connected"
+You must connect your Git account before creating applications:
+```bash
+saac git connect
 ```
 
 ### "No application found"
