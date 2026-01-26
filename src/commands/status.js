@@ -66,7 +66,11 @@ async function status() {
 
       // Show account info
       logger.field('User ID', userData.id);
-      logger.field('Git Username', userData.git_username || 'Not set');
+      if (userData.git_username) {
+        logger.field('Git Username', userData.git_username);
+      } else {
+        logger.field('Git Connection', 'Not connected (use OAuth to connect)');
+      }
       logger.field('Applications', `${userData.application_count} / ${userData.max_applications}`);
 
       logger.newline();
