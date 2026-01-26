@@ -32,15 +32,13 @@ async function register(options) {
       process.exit(1);
     }
 
-    const gitUsername = options.gitUsername || undefined;
-
     logger.section('Register for StartAnAiCompany');
 
-    // Register via API
+    // Register via API (git_username no longer required - OAuth used instead)
     const spin = logger.spinner('Creating account...').start();
 
     try {
-      const result = await api.register(email, gitUsername);
+      const result = await api.register(email);
 
       spin.succeed('Account created successfully!');
 

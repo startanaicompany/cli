@@ -57,17 +57,11 @@ async function login(email, apiKey) {
 
 /**
  * Register a new user
+ * Note: git_username no longer required - users connect Git via OAuth separately
  */
-async function register(email, gitUsername) {
+async function register(email) {
   const client = createClient();
-
-  // Build request body - only include git_username if provided
-  const body = { email };
-  if (gitUsername) {
-    body.git_username = gitUsername;
-  }
-
-  const response = await client.post('/users/register', body);
+  const response = await client.post('/users/register', { email });
   return response.data;
 }
 
