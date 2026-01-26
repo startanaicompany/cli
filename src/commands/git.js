@@ -95,13 +95,13 @@ async function connect(host) {
     }
 
     // Initiate OAuth flow
-    await oauth.connectGitAccount(gitHost, user.sessionToken || user.apiKey);
+    const result = await oauth.connectGitAccount(gitHost, user.sessionToken || user.apiKey);
 
     logger.newline();
     logger.success('Git account connected successfully!');
     logger.newline();
     logger.info('You can now create applications without providing --git-token:');
-    logger.log(`  saac create my-app -s myapp -r git@${gitHost}:user/repo.git`);
+    logger.log(`  saac create my-app -s myapp -r git@${gitHost}:${result.gitUsername}/repo.git`);
 
   } catch (error) {
     logger.error(error.message);
