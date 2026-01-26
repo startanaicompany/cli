@@ -103,6 +103,11 @@ All commands follow this pattern:
 
 **Important:** Commands require flags and do NOT use interactive prompts. This makes them LLM and automation-friendly.
 
+**Exceptions to Non-Interactive Rule:**
+- `saac init` - Uses inquirer to select from existing applications (intentionally interactive)
+- `saac logout-all` - Confirmation prompt (can be skipped with `-y` flag)
+- `saac git connect` - Interactive provider selection when no host specified
+
 **Examples:**
 ```bash
 # ✅ Correct - with flags
@@ -115,10 +120,11 @@ saac login
 ```
 
 **Command Files**:
-- Authentication: `register.js`, `login.js`, `verify.js`, `logout.js`, `whoami.js`
-- App Management: `create.js`, `init.js`, `deploy.js`, `delete.js`, `list.js`, `status.js`
-- Configuration: `env.js`, `domain.js`
-- Logs: `logs.js`
+- Authentication: `register.js`, `login.js`, `verify.js`, `logout.js`, `logoutAll.js`, `sessions.js`, `whoami.js` (stub)
+- Git OAuth: `git.js` (exports object with `connect`, `list`, `disconnect` methods)
+- App Management: `create.js`, `init.js`, `deploy.js`, `update.js`, `delete.js` (stub), `list.js`, `status.js`
+- Configuration: `env.js` (stub), `domain.js` (stub)
+- Logs: `logs.js` (stub)
 
 ### Entry Point (`bin/saac.js`)
 
@@ -361,9 +367,33 @@ saac git disconnect git.startanaicompany.com
 - ✅ Supports multiple Git providers
 
 **Implementation Files:**
-- `src/lib/oauth.js` - OAuth helper functions
-- `src/commands/git.js` - Git command implementation
-- Updated `src/commands/create.js` - OAuth integration
+- `src/lib/oauth.js` - OAuth helper functions (exports: `extractGitHost`, `connectGitAccount`, `getConnection`, `listConnections`, `revokeConnection`)
+- `src/commands/git.js` - Git command implementation (exports object with `connect`, `list`, `disconnect` methods)
+- Updated `src/commands/create.js` - OAuth integration (checks for existing OAuth connection before requiring `--git-token`)
+
+### Deploy Command Implementation
+
+The `deploy` command triggers deployment for the current application.
+
+**Usage:**
+```bash
+saac deploy
+saac deploy --force
+```
+
+**How It Works:**
+1. Validates authentication (session token not expired)
+2. Checks for project config (`.saac/config.json`)
+3. Makes POST request to `/api/v1/applications/:uuid/deploy`
+4. Displays deployment status and deployment ID
+5. Shows command to follow logs: `saac logs --follow`
+
+**Response Fields:**
+- `status` - Application status after deployment triggered
+- `domain` - Application domain (if available)
+- `deployment_id` - Unique ID for this deployment
+
+**Note:** The `--force` flag is defined in the CLI but not currently used by the API.
 
 ### Init Command Implementation
 
@@ -392,24 +422,57 @@ saac init
 
 **Note:** The `init` command options (`-n, --name`, etc.) are currently not implemented. To create a new application, use `saac create` instead.
 
+### List Command Implementation
+
+The `list` command displays all user applications in a formatted table.
+
+**Usage:**
+```bash
+saac list
+saac ls  # Alias
+```
+
+**How It Works:**
+1. Validates authentication
+2. Fetches all applications from `/api/v1/applications`
+3. Displays table with columns: Name, Domain, Status, Branch, Created
+4. Shows total count and helpful next-step commands
+
+**Status Display:**
+Uses the same status display logic as the status command (see "Application Status Values" section).
+
+**Table Formatting:**
+- Uses the `table` npm package
+- Header shows total application count
+- Domains fallback to `{subdomain}.startanaicompany.com` if not set
+- Branch defaults to 'master' if not specified
+
 ### Incomplete Commands
 
 Several commands still need implementation:
-- `src/commands/env.js` - Not implemented (partial stub)
-- `src/commands/domain.js` - Not implemented (partial stub)
-- `src/commands/logs.js` - Not implemented (partial stub)
-- `src/commands/delete.js` - Not implemented (partial stub)
-- `src/commands/list.js` - Not implemented (partial stub)
-- `src/commands/whoami.js` - Not implemented (partial stub)
+- `src/commands/env.js` - Not implemented (stub only)
+- `src/commands/domain.js` - Not implemented (stub only)
+- `src/commands/logs.js` - Not implemented (stub only)
+- `src/commands/delete.js` - Not implemented (stub only)
+- `src/commands/whoami.js` - Not implemented (stub only)
 
-These need full implementation following the pattern from completed commands like `create.js` or `login.js`.
+**Important:** The `env` and `domain` commands need to export OBJECTS with subcommand methods (e.g., `module.exports = { set, get, list }`), not simple functions. See `bin/saac.js:189-219` for how these are called.
 
 **Implementation Pattern for New Commands:**
-1. Require flags, no interactive prompts
+1. Require flags, no interactive prompts (exception: `init` uses inquirer for app selection)
 2. Show usage info if required flags missing
 3. Validate inputs before API calls
 4. Use spinners for async operations
 5. Handle errors with descriptive messages
+
+**Example Module Structure for env.js:**
+```javascript
+async function set(vars) { /* implementation */ }
+async function get(key) { /* implementation */ }
+async function list() { /* implementation */ }
+
+module.exports = { set, get, list };
+```
 
 ### MailHog Integration
 
@@ -430,7 +493,183 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - During registration, Gitea username can be auto-detected or manually provided
 - Applications reference repositories in the format: `git@git.startanaicompany.com:user/repo.git`
 
-## Testing Considerations
+## Current Status - Version 1.4.12
+
+### Completed Features
+
+**Authentication & Sessions:**
+- ✅ `saac register` - Register with email only (git_username auto-detected from email)
+- ✅ `saac login` - Login with email + API key, receives 1-year session token
+- ✅ `saac verify` - Email verification, shows FULL API key for user to save
+- ✅ `saac logout` - Logout from current device
+- ✅ `saac logout-all` - Revoke all sessions
+- ✅ `saac sessions` - List all active sessions
+- ✅ `saac whoami` - Show current user info
+
+**Git OAuth (NEW in 1.4.0):**
+- ✅ `saac git connect [host]` - OAuth flow for Git authentication
+- ✅ `saac git list` - List connected Git accounts
+- ✅ `saac git disconnect <host>` - Revoke Git connection
+- ✅ OAuth integration in create command (prompts if not connected)
+
+**Application Management:**
+- ✅ `saac create` - Create application with ALL advanced features
+- ✅ `saac update` - Update application configuration (PATCH endpoint)
+- ✅ `saac init` - Link existing application to current directory (interactive)
+- ✅ `saac deploy` - Trigger deployment for current application
+- ✅ `saac list` - List all applications with table display
+- ✅ `saac status` - Show login status, user info, and applications
+
+**Incomplete Commands:**
+- ⏳ `saac logs` - Not implemented (stub only)
+- ⏳ `saac env` - Not implemented (stub only, needs to export object with set/get/list methods)
+- ⏳ `saac domain` - Not implemented (stub only, needs to export object with set/show methods)
+- ⏳ `saac delete` - Not implemented (stub only)
+- ⏳ `saac whoami` - Not implemented (stub only)
+- ✅ `saac deploy` - Fully implemented
+- ✅ `saac list` - Fully implemented
+
+### Critical Learnings & Bug Fixes
+
+**Issue 1: Config Location**
+- **Problem:** Conf package auto-appended `-nodejs` suffix to folder name
+- **Solution:** Use explicit `cwd: path.join(os.homedir(), '.config', 'startanaicompany')` instead of `projectName`
+- **Location:** `src/lib/config.js`
+
+**Issue 2: Status Command Showing "Logged in" Then "Expired"**
+- **Problem:** Command checked local session first, displayed status, THEN verified with server
+- **Solution:** Verify with server FIRST before displaying any status
+- **Location:** `src/commands/status.js`
+
+**Issue 3: Application List Inconsistency**
+- **Problem:** `/users/me` returned `application_count: 1` but `/applications` returned empty array
+- **Root Cause:** Backend filtered by `status='active'` but new apps start with `status='creating'`
+- **Solution:** Backend team fixed to filter by `status != 'deleted'`
+- **Location:** Backend - `src/services/application.js:447`
+
+**Issue 4: Register Endpoint 404 Error**
+- **Problem:** CLI was calling `POST /api/v1/register` but actual endpoint is `POST /api/v1/users/register`
+- **Solution:** Changed endpoint path in api.js
+- **Location:** `src/lib/api.js:64`
+
+**Issue 5: Deprecated Field Names**
+- **Problem:** CLI still used `gitea_username` and `gitea_api_token`
+- **Solution:** Renamed to `git_username` and `git_api_token` throughout codebase
+- **Affected:** `register.js`, `api.js`, `bin/saac.js`
+
+**Issue 6: Truncated API Key Display**
+- **Problem:** Showing truncated API key with "Save this key" message was confusing
+- **Solution:** Show FULL API key in verify command (it's only shown once)
+- **Location:** `src/commands/verify.js:72`
+
+**Issue 7: Git Username Auto-Detection**
+- **Finding:** Server auto-populates `git_username` from email address (e.g., `kalle.johansson@goryan.io` → `kalle.johansson`)
+- **Behavior:** This is backend behavior, CLI just displays what server returns
+- **No action needed:** Working as designed
+
+### API Endpoint Reference
+
+**Correct Endpoint Paths (v1.4.12):**
+- `POST /api/v1/users/register` - Register (email only, git_username optional)
+- `POST /api/v1/users/verify` - Verify email with code
+- `POST /api/v1/auth/login` - Login with API key, get session token
+- `POST /api/v1/auth/logout` - Logout current session
+- `POST /api/v1/auth/logout-all` - Revoke all sessions
+- `GET /api/v1/auth/sessions` - List all sessions
+- `GET /api/v1/users/me` - Get user info
+- `GET /api/v1/users/me/oauth` - List OAuth connections
+- `DELETE /api/v1/users/me/oauth/:git_host` - Revoke OAuth connection
+- `GET /oauth/authorize` - Initiate OAuth flow (no /api/v1 prefix!)
+- `GET /oauth/poll/:session_id` - Poll OAuth status (no /api/v1 prefix!)
+- `POST /api/v1/applications` - Create application
+- `GET /api/v1/applications` - List applications
+- `PATCH /api/v1/applications/:uuid` - Update application
+- `POST /api/v1/applications/:uuid/deploy` - Deploy application
+- `GET /api/v1/applications/:uuid/logs` - Get logs
+- `DELETE /api/v1/applications/:uuid` - Delete application
+
+**Important:** OAuth endpoints (`/oauth/*`) do NOT have the `/api/v1` prefix!
+
+### OAuth Implementation Details
+
+**Token Handling:**
+- Session tokens start with `st_`
+- API keys start with `cw_`
+- OAuth helper functions detect token type and use correct header:
+  - `st_*` → `X-Session-Token`
+  - `cw_*` → `X-API-Key`
+
+**Polling Strategy:**
+- Initial 60-second wait before polling starts (gives user time to complete OAuth)
+- Poll every 2 seconds for up to 5 minutes
+- Handles 401/404 errors during polling (expected while user authorizes)
+- Only fails on non-auth errors (500, network errors)
+
+**OAuth URL Construction:**
+- Remove `/api/v1` suffix from base URL: `baseUrl.replace('/api/v1', '')`
+- OAuth endpoints: `${baseUrl}/oauth/authorize` and `${baseUrl}/oauth/poll/:id`
+
+### Application Status Values
+
+Backend returns these status values (from Coolify):
+- `creating` - Application being created (initial state)
+- `active` - Fully created and operational
+- `running:healthy` - Container running and healthy
+- `running:unknown` - Container running, health status unknown
+- `stopped` - Container stopped
+- `error` - Creation or deployment failed
+- `suspended` - Suspended by admin
+
+**CLI Display Logic:**
+```javascript
+if (status.startsWith('running')) {
+  display = 'Running ✓' (green);
+} else if (status.startsWith('stopped')) {
+  display = 'Stopped' (yellow);
+} else {
+  switch (status) {
+    case 'active': display = 'Active ✓' (green);
+    case 'creating': display = 'Creating...' (yellow);
+    case 'error': display = 'Error ✗' (red);
+    case 'suspended': display = 'Suspended ⚠' (yellow);
+  }
+}
+```
+
+### User Registration & Authentication Flow
+
+**Complete Flow:**
+1. `saac register -e user@example.com` → Creates account, sends verification email
+2. Check MailHog at https://mailhog.goryan.io for verification code
+3. `saac verify 123456` → Verifies email, returns API key (shown in full, only once)
+4. `saac login -e user@example.com -k cw_...` → Exchanges API key for 1-year session token
+5. Session token saved to `~/.config/startanaicompany/config.json`
+6. All future commands use session token automatically
+
+**Note:** User MUST login after verification to get session token. Verification only provides API key.
+
+### Sessions Management Commands
+
+**Sessions Command (`saac sessions`):**
+- Lists all active sessions with creation date, last used time, IP address, and expiration
+- Uses table format for clear display
+- Shows total session count
+- Located in `src/commands/sessions.js`
+
+**Logout All Command (`saac logout-all`):**
+- Revokes ALL session tokens across all devices
+- Requires confirmation prompt unless `--yes` flag provided
+- Clears local config after successful revocation
+- Shows count of sessions revoked
+- Located in `src/commands/logoutAll.js`
+- **Exception to non-interactive rule:** Uses inquirer for confirmation prompt (but can be skipped with `-y`)
+
+**Implementation Notes:**
+- Both commands check authentication before proceeding
+- Handle gracefully if session already expired (401 errors)
+- Clear local config even if server call fails
+
+### Testing Considerations
 
 When implementing new commands:
 1. Test both with flags and interactive prompts
@@ -439,3 +678,32 @@ When implementing new commands:
 4. Test API error responses
 5. Ensure proper exit codes (0 for success, 1 for errors)
 6. Check that spinners succeed/fail appropriately
+7. **NEVER truncate sensitive data if user needs to save it** (API keys, session tokens)
+8. Show full values for one-time credentials
+
+### Publishing Checklist
+
+Before publishing to npm:
+1. Verify all new commands work with live backend
+2. Test OAuth flow end-to-end
+3. Check syntax: `node -c src/**/*.js bin/*.js`
+4. Update version in package.json
+5. Update CLAUDE.md with changes
+6. Run: `npm publish --access public --otp=<code>`
+
+### Dependencies
+
+**Required packages:**
+- `axios` - HTTP client for API calls
+- `chalk` - Terminal colors
+- `commander` - CLI framework
+- `conf` - Configuration management
+- `inquirer` - Interactive prompts
+- `ora` - Spinners
+- `boxen` - Boxed messages
+- `table` - Table display
+- `validator` - Email validation
+- `dotenv` - Environment variables
+- `open` - Open browser for OAuth (v8.4.2 for compatibility with chalk v4)
+
+**Version:** 1.4.12 (current)
