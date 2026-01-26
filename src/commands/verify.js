@@ -21,7 +21,7 @@ async function verify(code) {
 
     const user = getUser();
 
-    if (!user || !user.email) {
+    if (!user || !user.userId) {
       logger.error('No user found. Please register first');
       logger.newline();
       logger.info('Run:');
@@ -39,17 +39,22 @@ async function verify(code) {
     const spin = logger.spinner('Verifying email...').start();
 
     try {
-      const result = await api.verifyEmail(user.email, code);
+      const result = await api.verifyEmail(user.userId, code);
 
       spin.succeed('Email verified successfully!');
 
-      // Update user verification status and session token if provided
+      // Update user verification status and save API key
       const updatedUser = {
         ...user,
         verified: true,
       };
 
-      // If backend returns new session token after verification, update it
+      // Save API key if returned (only returned once on verification)
+      if (result.api_key) {
+        updatedUser.apiKey = result.api_key;
+      }
+
+      // If backend returns session token after verification, update it
       if (result.session_token) {
         updatedUser.sessionToken = result.session_token;
         updatedUser.expiresAt = result.expires_at;
@@ -60,6 +65,13 @@ async function verify(code) {
       logger.newline();
       logger.success('Your account is now verified!');
       logger.info('You can now create and deploy applications.');
+
+      // Show API key if provided
+      if (result.api_key) {
+        logger.newline();
+        logger.field('API Key', result.api_key.substring(0, 20) + '...');
+        logger.warn('Save your API key securely. It will not be shown again.');
+      }
 
       // Show expiration if session token was updated
       if (result.expires_at) {

@@ -68,10 +68,10 @@ async function register(email) {
 /**
  * Verify email with code
  */
-async function verifyEmail(email, code) {
+async function verifyEmail(userId, code) {
   const client = createClient();
   const response = await client.post('/users/verify', {
-    email,
+    user_id: userId,
     verification_code: code,
   });
   return response.data;
