@@ -36,7 +36,7 @@ async function connect(host) {
           name: 'choice',
           message: 'Select Git provider:',
           choices: [
-            { name: 'git.startanaicompany.com (Gitea)', value: 'git.startanaicompany.com' },
+            { name: 'git.startanaicompany.com (Git StartanAICompany)', value: 'git.startanaicompany.com' },
             { name: 'github.com', value: 'github.com' },
             { name: 'gitlab.com', value: 'gitlab.com' },
             { name: 'Custom host', value: 'custom' },
