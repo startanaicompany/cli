@@ -67,18 +67,15 @@ async function status() {
       // Show account info
       logger.field('User ID', userData.id);
 
-      // Show OAuth connections (new system) or legacy git_username
+      // Show OAuth connections
       if (userData.git_connections && userData.git_connections.length > 0) {
         // Show all OAuth connections
         userData.git_connections.forEach((conn, index) => {
           const label = index === 0 ? 'Git Connection' : '               '; // Align subsequent connections
           logger.field(label, `${conn.gitUsername} @ ${conn.gitHost}`);
         });
-      } else if (userData.git_username) {
-        // Legacy system - user has git_username but no OAuth
-        logger.field('Git Username', userData.git_username + ' (legacy)');
       } else {
-        logger.field('Git Connection', 'Not connected (use OAuth to connect)');
+        logger.field('Git Connection', 'Not connected (use: saac git connect)');
       }
 
       logger.field('Applications', `${userData.application_count} / ${userData.max_applications}`);
