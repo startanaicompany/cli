@@ -97,13 +97,14 @@ async function pollForCompletion(sessionId, apiKey) {
     await sleep(pollInterval);
 
     try {
+      // Use correct header based on token type
+      const headers = apiKey.startsWith('st_')
+        ? { 'X-Session-Token': apiKey }
+        : { 'X-API-Key': apiKey };
+
       const response = await axios.get(
         `${baseUrl}/oauth/poll/${sessionId}`,
-        {
-          headers: {
-            'X-API-Key': apiKey,
-          },
-        }
+        { headers }
       );
 
       const { status, gitUsername, gitHost } = response.data;

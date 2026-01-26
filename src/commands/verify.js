@@ -64,13 +64,17 @@ async function verify(code) {
 
       logger.newline();
       logger.success('Your account is now verified!');
-      logger.info('You can now create and deploy applications.');
 
-      // Show API key if provided
+      // Show API key if provided (FULL key, not truncated)
       if (result.api_key) {
         logger.newline();
-        logger.field('API Key', result.api_key.substring(0, 20) + '...');
+        logger.field('API Key', result.api_key);
         logger.warn('Save your API key securely. It will not be shown again.');
+        logger.newline();
+        logger.info('Next step: Login with your API key');
+        logger.log(`  saac login -e ${user.email} -k ${result.api_key}`);
+        logger.newline();
+        logger.info('After login, you can create and deploy applications.');
       }
 
       // Show expiration if session token was updated

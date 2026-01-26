@@ -82,16 +82,8 @@ async function register(options) {
       logger.newline();
       logger.field('Email', email);
 
-      // Show session token or API key info
-      if (result.session_token) {
-        logger.field('Session Token', result.session_token.substring(0, 20) + '...');
-        if (result.expires_at) {
-          const expirationDate = new Date(result.expires_at);
-          logger.field('Expires', expirationDate.toLocaleDateString());
-        }
-      } else if (result.api_key) {
-        logger.field('API Key', result.api_key.substring(0, 20) + '...');
-      }
+      // Session token is automatically saved, no need to show it
+      // User will get their API key after verification
 
     } catch (error) {
       spin.fail('Registration failed');
