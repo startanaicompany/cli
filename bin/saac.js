@@ -117,7 +117,6 @@ program
   // Required options
   .option('-s, --subdomain <subdomain>', 'Subdomain')
   .option('-r, --repository <url>', 'Git repository URL (SSH format)')
-  .option('-t, --git-token <token>', 'Git API token')
   // Basic options
   .option('-b, --branch <branch>', 'Git branch', 'master')
   .option('-d, --domain-suffix <suffix>', 'Domain suffix', 'startanaicompany.com')

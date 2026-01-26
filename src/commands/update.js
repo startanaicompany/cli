@@ -259,9 +259,17 @@ async function update(options) {
         logger.error('Validation failed');
         if (data.details) {
           logger.newline();
-          Object.entries(data.details).forEach(([field, message]) => {
-            logger.log(`  ${logger.chalk.yellow(field)}: ${message}`);
-          });
+          // Backend sends details as array: [{field, message, type}, ...]
+          if (Array.isArray(data.details)) {
+            data.details.forEach((detail) => {
+              logger.log(`  ${logger.chalk.yellow(detail.field)}: ${detail.message}`);
+            });
+          } else {
+            // Fallback for object format: {field: message, ...}
+            Object.entries(data.details).forEach(([field, message]) => {
+              logger.log(`  ${logger.chalk.yellow(field)}: ${message}`);
+            });
+          }
         } else {
           logger.log(`  ${data.message || data.error}`);
         }

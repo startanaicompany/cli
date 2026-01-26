@@ -29,7 +29,6 @@ async function create(name, options) {
       logger.info('Required options:');
       logger.log('  -s, --subdomain <subdomain>          Subdomain for your app');
       logger.log('  -r, --repository <url>               Git repository URL (SSH format)');
-      logger.log('  -t, --git-token <token>              Git API token (optional if OAuth connected)');
       logger.newline();
       logger.info('Optional options:');
       logger.log('  -b, --branch <branch>                Git branch (default: master)');
@@ -51,9 +50,9 @@ async function create(name, options) {
       logger.log('  --env <KEY=VALUE>                    Environment variable (can be used multiple times)');
       logger.newline();
       logger.info('Example:');
-      logger.log('  saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git -t abc123');
-      logger.log('  saac create api -s api -r git@git... -t abc123 --build-pack nixpacks --port 8080');
-      logger.log('  saac create web -s web -r git@git... -t abc123 --health-check --pre-deploy-cmd "npm run migrate"');
+      logger.log('  saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git');
+      logger.log('  saac create api -s api -r git@git... --build-pack nixpacks --port 8080');
+      logger.log('  saac create web -s web -r git@git... --health-check --pre-deploy-cmd "npm run migrate"');
       process.exit(1);
     }
 
@@ -62,7 +61,8 @@ async function create(name, options) {
       logger.newline();
       logger.info('Example:');
       logger.log(`  saac create ${name} -s myapp -r git@git.startanaicompany.com:user/repo.git`);
-      logger.log(`  saac create ${name} -s myapp -r git@git... -t your_token  # With manual token`);
+      logger.newline();
+      logger.info('Note: Git OAuth connection required. Connect with: saac git connect');
       process.exit(1);
     }
 
@@ -77,36 +77,16 @@ async function create(name, options) {
     if (connection) {
       logger.success(`Using connected account: ${connection.gitUsername}@${connection.gitHost}`);
       logger.newline();
-    } else if (!options.gitToken) {
-      // No OAuth connection AND no manual token provided
-      logger.warn(`Git account not connected for ${gitHost}`);
+    } else {
+      // No OAuth connection - must connect
+      logger.error(`Git account not connected for ${gitHost}`);
       logger.newline();
-
-      const { shouldConnect } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'shouldConnect',
-          message: 'Would you like to connect now?',
-          default: true,
-        },
-      ]);
-
-      if (!shouldConnect) {
-        logger.newline();
-        logger.error('Cannot create application without Git authentication');
-        logger.newline();
-        logger.info('Options:');
-        logger.log('  1. Connect Git account: saac git connect');
-        logger.log('  2. Provide token: saac create ... --git-token <token>');
-        process.exit(1);
-      }
-
-      // Initiate OAuth flow
-      await oauth.connectGitAccount(gitHost, user.sessionToken || user.apiKey);
-
+      logger.info('Git OAuth connection is required to create applications');
       logger.newline();
-      logger.section('Continuing with application creation');
+      logger.info('Connect now:');
+      logger.log('  saac git connect');
       logger.newline();
+      process.exit(1);
     }
 
     // Build application payload
@@ -118,10 +98,8 @@ async function create(name, options) {
       git_branch: options.branch || 'master',
     };
 
-    // Only include git_api_token if provided (OAuth will be used if available)
-    if (options.gitToken) {
-      appData.git_api_token = options.gitToken;
-    }
+    // OAuth tokens are retrieved from database by wrapper
+    // No manual git_api_token field needed
 
     // Optional: Port configuration
     if (options.port) {
@@ -304,9 +282,17 @@ async function create(name, options) {
         logger.error('Validation failed');
         if (data.details) {
           logger.newline();
-          Object.entries(data.details).forEach(([field, message]) => {
-            logger.log(`  ${logger.chalk.yellow(field)}: ${message}`);
-          });
+          // Backend sends details as array: [{field, message, type}, ...]
+          if (Array.isArray(data.details)) {
+            data.details.forEach((detail) => {
+              logger.log(`  ${logger.chalk.yellow(detail.field)}: ${detail.message}`);
+            });
+          } else {
+            // Fallback for object format: {field: message, ...}
+            Object.entries(data.details).forEach(([field, message]) => {
+              logger.log(`  ${logger.chalk.yellow(field)}: ${message}`);
+            });
+          }
         } else {
           logger.log(`  ${data.message || data.error}`);
         }
