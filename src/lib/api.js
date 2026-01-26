@@ -60,10 +60,14 @@ async function login(email, apiKey) {
  */
 async function register(email, gitUsername) {
   const client = createClient();
-  const response = await client.post('/users/register', {
-    email,
-    git_username: gitUsername,
-  });
+
+  // Build request body - only include git_username if provided
+  const body = { email };
+  if (gitUsername) {
+    body.git_username = gitUsername;
+  }
+
+  const response = await client.post('/users/register', body);
   return response.data;
 }
 
