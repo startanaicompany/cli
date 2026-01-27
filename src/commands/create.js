@@ -3,10 +3,11 @@
  */
 
 const api = require('../lib/api');
-const { isAuthenticated, saveProjectConfig, getUser } = require('../lib/config');
+const { isAuthenticated, saveProjectConfig, getUser, getProjectConfig } = require('../lib/config');
 const logger = require('../lib/logger');
 const oauth = require('../lib/oauth');
 const inquirer = require('inquirer');
+const { execSync } = require('child_process');
 
 async function create(name, options) {
   try {
@@ -17,6 +18,65 @@ async function create(name, options) {
       logger.info('Run:');
       logger.log('  saac login -e <email> -k <api-key>');
       process.exit(1);
+    }
+
+    // Check if application already exists in this directory
+    const existingConfig = getProjectConfig();
+    if (existingConfig) {
+      logger.error('Application already published');
+      logger.newline();
+      logger.info('This directory is already linked to an application:');
+      if (existingConfig.applicationName) {
+        logger.field('Name', existingConfig.applicationName);
+      }
+      if (existingConfig.subdomain && existingConfig.domainSuffix) {
+        const domain = `https://${existingConfig.subdomain}.${existingConfig.domainSuffix}`;
+        logger.field('Domain', domain);
+        logger.newline();
+        logger.info(`Your application should be available at: ${domain}`);
+      }
+      logger.newline();
+      logger.info('To manage this application, use:');
+      logger.log('  saac deploy              Deploy changes');
+      logger.log('  saac update [options]    Update configuration');
+      logger.log('  saac env set KEY=VALUE   Set environment variables');
+      logger.log('  saac logs --follow       View logs');
+      logger.log('  saac status              Check status');
+      logger.newline();
+      logger.warn('To create a new application, use a different directory');
+      process.exit(1);
+    }
+
+    // Check current git branch
+    let currentBranch = null;
+    try {
+      currentBranch = execSync('git rev-parse --abbrev-ref HEAD', {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+    } catch (error) {
+      // Not in a git repository or git not available - continue anyway
+    }
+
+    if (currentBranch && currentBranch !== 'master' && currentBranch !== 'main') {
+      const specifiedBranch = options.branch;
+
+      if (!specifiedBranch || specifiedBranch !== currentBranch) {
+        logger.error(`You are currently on branch: ${logger.chalk.yellow(currentBranch)}`);
+        logger.newline();
+        logger.warn('This is not the master or main branch!');
+        logger.newline();
+        logger.info('If you really want to use this branch, confirm by specifying it explicitly:');
+        logger.log(`  saac create ${name} -s ${options.subdomain || '<subdomain>'} -r ${options.repository || '<repository>'} --branch ${currentBranch}`);
+        logger.newline();
+        logger.info('Or switch to master/main branch:');
+        logger.log('  git checkout master');
+        logger.log('  git checkout main');
+        process.exit(1);
+      } else {
+        logger.warn(`Using branch: ${logger.chalk.yellow(currentBranch)}`);
+        logger.newline();
+      }
     }
 
     // Validate required fields
@@ -106,16 +166,16 @@ async function create(name, options) {
       appData.ports_exposes = options.port;
     }
 
-    // Optional: Build pack
-    if (options.buildPack) {
-      const validBuildPacks = ['dockercompose', 'nixpacks', 'dockerfile', 'static'];
-      if (!validBuildPacks.includes(options.buildPack)) {
-        logger.error(`Invalid build pack: ${options.buildPack}`);
-        logger.info(`Must be one of: ${validBuildPacks.join(', ')}`);
-        process.exit(1);
-      }
-      appData.build_pack = options.buildPack;
+    // Optional: Build pack (defaults to dockercompose)
+    const validBuildPacks = ['dockercompose', 'nixpacks', 'dockerfile', 'static'];
+    const buildPack = options.buildPack || 'dockercompose';
+
+    if (!validBuildPacks.includes(buildPack)) {
+      logger.error(`Invalid build pack: ${buildPack}`);
+      logger.info(`Must be one of: ${validBuildPacks.join(', ')}`);
+      process.exit(1);
     }
+    appData.build_pack = buildPack;
 
     // Optional: Custom commands
     if (options.installCmd) {
