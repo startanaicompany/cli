@@ -92,12 +92,13 @@ async function status() {
         const hasMore = applications.length > 5;
 
         const data = [
-          ['Name', 'Domain', 'Status', 'Created'],
+          ['Name', 'Domain', 'Status', 'Branch', 'Created'],
         ];
 
         displayApps.forEach((app) => {
           const created = new Date(app.created_at).toLocaleDateString();
           const status = app.status || 'unknown';
+          const branch = app.git_branch || 'unknown';
 
           // Status with icons (handle both Coolify format and documented format)
           let statusDisplay;
@@ -128,6 +129,7 @@ async function status() {
             app.name,
             app.domain || `${app.subdomain}.startanaicompany.com`,
             statusDisplay,
+            branch,
             created
           ]);
         });
