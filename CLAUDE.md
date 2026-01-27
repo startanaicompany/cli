@@ -493,7 +493,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - During registration, Gitea username can be auto-detected or manually provided
 - Applications reference repositories in the format: `git@git.startanaicompany.com:user/repo.git`
 
-## Current Status - Version 1.4.14
+## Current Status - Version 1.4.15
 
 ### Completed Features
 
@@ -706,4 +706,4 @@ Before publishing to npm:
 - `dotenv` - Environment variables
 - `open` - Open browser for OAuth (v8.4.2 for compatibility with chalk v4)
 
-**Version:** 1.4.14 (current)
+**Version:** 1.4.15 (current)
