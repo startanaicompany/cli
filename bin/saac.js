@@ -22,6 +22,7 @@ const init = require('../src/commands/init');
 const create = require('../src/commands/create');
 const update = require('../src/commands/update');
 const deploy = require('../src/commands/deploy');
+const deployments = require('../src/commands/deployments');
 const logs = require('../src/commands/logs');
 const env = require('../src/commands/env');
 const domain = require('../src/commands/domain');
@@ -200,10 +201,22 @@ program
   .action(deploy);
 
 program
-  .command('logs')
-  .description('View application logs')
-  .option('-t, --tail <lines>', 'Number of lines to show', '100')
-  .option('-f, --follow', 'Follow log output')
+  .command('deployments')
+  .alias('deploys')
+  .description('List deployment history')
+  .option('-l, --limit <number>', 'Number of deployments to show', '20')
+  .option('-o, --offset <number>', 'Offset for pagination', '0')
+  .action(deployments);
+
+program
+  .command('logs [deploymentUuid]')
+  .description('View application logs (runtime or deployment logs)')
+  .option('-d, --deployment [uuid]', 'View deployment logs (build logs)')
+  .option('--raw', 'Show raw log output (deployment logs only)')
+  .option('--include-hidden', 'Include hidden log lines (deployment logs only)')
+  .option('-t, --tail <lines>', 'Number of lines to show (runtime logs only)', '100')
+  .option('-f, --follow', 'Follow log output (runtime logs only)')
+  .option('--since <time>', 'Show logs since timestamp (runtime logs only)')
   .action(logs);
 
 // Environment variable commands

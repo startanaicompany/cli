@@ -187,6 +187,24 @@ async function healthCheck() {
 }
 
 /**
+ * Get deployment history for an application
+ */
+async function getDeployments(uuid, params = {}) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/deployments`, { params });
+  return response.data;
+}
+
+/**
+ * Get deployment logs (build logs, not runtime logs)
+ */
+async function getDeploymentLogs(uuid, params = {}) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/deployment-logs`, { params });
+  return response.data;
+}
+
+/**
  * Request login OTP (no API key required)
  */
 async function requestLoginOtp(email) {
@@ -261,4 +279,6 @@ module.exports = {
   verifyLoginOtp,
   regenerateApiKey,
   getApiKeyInfo,
+  getDeployments,
+  getDeploymentLogs,
 };

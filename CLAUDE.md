@@ -651,12 +651,160 @@ Uses the same status display logic as the status command (see "Application Statu
 - Domains fallback to `{subdomain}.startanaicompany.com` if not set
 - Branch defaults to 'master' if not specified
 
+### Deployments Command Implementation
+
+The `deployments` command displays deployment history for the current application in a formatted table.
+
+**Usage:**
+```bash
+saac deployments
+saac deploys  # Alias
+
+# With pagination
+saac deployments --limit 10
+saac deployments --limit 20 --offset 20
+```
+
+**How It Works:**
+1. Validates authentication (session token not expired)
+2. Checks for project config (`.saac/config.json`)
+3. Fetches deployment history from `/api/v1/applications/:uuid/deployments`
+4. Displays table with columns: UUID, Status, Branch, Commit, Duration, Trigger, Date
+5. Shows pagination info if more deployments available
+
+**Options:**
+- `-l, --limit <number>` - Number of deployments to show (default: 20)
+- `-o, --offset <number>` - Offset for pagination (default: 0)
+
+**Status Display:**
+- ✅ `finished` - Displayed in green
+- ✗ `failed` - Displayed in red
+- ⏳ `running`, `queued` - Displayed in yellow
+- `unknown` - Displayed in gray
+
+**Table Formatting:**
+- UUID truncated to 26 characters for readability
+- Commit SHA truncated to 7 characters
+- Duration shown in seconds
+- Date formatted with `toLocaleString()`
+
+**Response Fields:**
+```json
+{
+  "deployments": [
+    {
+      "deployment_uuid": "...",
+      "status": "finished",
+      "git_branch": "master",
+      "git_commit": "abc1234",
+      "duration_seconds": 45,
+      "triggered_by": "api",
+      "started_at": "2024-01-20T12:00:00Z"
+    }
+  ],
+  "total": 100
+}
+```
+
+**Next Steps:**
+After viewing deployment history, use:
+- `saac logs --deployment` - View latest deployment logs
+- `saac logs --deployment <uuid>` - View specific deployment logs
+
+### Logs Command Implementation
+
+The `logs` command displays application logs with support for both deployment logs (build logs) and runtime logs (container logs).
+
+**Usage:**
+```bash
+# View latest deployment logs (build logs)
+saac logs --deployment
+saac logs -d
+
+# View specific deployment logs
+saac logs --deployment abc123-def456-...
+saac logs abc123-def456-... --deployment
+
+# View deployment logs in raw format
+saac logs --deployment --raw
+
+# View runtime logs (container logs)
+saac logs
+saac logs --tail 200
+saac logs --follow
+saac logs --since 1h
+```
+
+**Two Modes:**
+
+**1. Deployment Logs Mode (Build Logs)**
+- Enabled with `--deployment` flag
+- Shows logs from the build/deployment process
+- Includes build output, errors, and deployment status
+- Supports both parsed (colorized) and raw formats
+
+**Options:**
+- `--deployment [uuid]` - View deployment logs (omit UUID for latest)
+- `--raw` - Show raw log output (no parsing or colorization)
+- `--include-hidden` - Include hidden log lines
+
+**Display:**
+- Header with deployment UUID, status, commit, duration
+- Parsed logs with stderr highlighted in red
+- Error summary if deployment failed
+- Structured error information with types and details
+
+**2. Runtime Logs Mode (Container Logs)**
+- Default mode when no `--deployment` flag
+- Shows logs from the running container
+- Real-time application output
+
+**Options:**
+- `-t, --tail <lines>` - Number of lines to show (default: 100)
+- `-f, --follow` - Follow log output (not yet implemented)
+- `--since <time>` - Show logs since timestamp
+
+**Error Handling:**
+- 404 error → No deployments found, suggests `saac deploy`
+- 501 error → Runtime logs not implemented, suggests deployment logs
+
+**Response Fields (Deployment Logs):**
+```json
+{
+  "deployment_uuid": "...",
+  "status": "finished",
+  "commit": "abc1234",
+  "commit_message": "Fix bug",
+  "started_at": "2024-01-20T12:00:00Z",
+  "finished_at": "2024-01-20T12:02:00Z",
+  "duration_seconds": 120,
+  "log_count": 150,
+  "logs": [
+    {
+      "type": "stdout",
+      "output": "Installing dependencies..."
+    },
+    {
+      "type": "stderr",
+      "output": "npm WARN deprecated package@1.0.0"
+    }
+  ],
+  "raw_logs": "...",
+  "errors": [
+    {
+      "type": "BUILD_FAILED",
+      "message": "Build failed with exit code 1",
+      "detail": "npm ERR! code ELIFECYCLE"
+    }
+  ]
+}
+```
+
 ### Incomplete Commands
 
 Several commands still need implementation:
 - `src/commands/env.js` - Not implemented (stub only)
 - `src/commands/domain.js` - Not implemented (stub only)
-- `src/commands/logs.js` - Not implemented (stub only)
 - `src/commands/delete.js` - Not implemented (stub only)
 - `src/commands/whoami.js` - Not implemented (stub only)
 
@@ -728,17 +876,16 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - ✅ `saac update` - Update application configuration (PATCH endpoint)
 - ✅ `saac init` - Link existing application to current directory (interactive)
 - ✅ `saac deploy` - Trigger deployment for current application
+- ✅ `saac deployments` - List deployment history with table display
+- ✅ `saac logs` - View deployment logs (build logs) or runtime logs (container logs)
 - ✅ `saac list` - List all applications with table display
 - ✅ `saac status` - Show login status, user info, and applications
 
 **Incomplete Commands:**
-- ⏳ `saac logs` - Not implemented (stub only)
 - ⏳ `saac env` - Not implemented (stub only, needs to export object with set/get/list methods)
 - ⏳ `saac domain` - Not implemented (stub only, needs to export object with set/show methods)
 - ⏳ `saac delete` - Not implemented (stub only)
 - ⏳ `saac whoami` - Not implemented (stub only)
-- ✅ `saac deploy` - Fully implemented
-- ✅ `saac list` - Fully implemented
 
 ### Critical Learnings & Bug Fixes
 
@@ -780,7 +927,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 
 ### API Endpoint Reference
 
-**Correct Endpoint Paths (v1.4.12):**
+**Correct Endpoint Paths (v1.4.17):**
 - `POST /api/v1/users/register` - Register (email only, git_username optional)
 - `POST /api/v1/users/verify` - Verify email with code
 - `POST /api/v1/auth/login` - Login with API key, get session token
@@ -796,7 +943,9 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - `GET /api/v1/applications` - List applications
 - `PATCH /api/v1/applications/:uuid` - Update application
 - `POST /api/v1/applications/:uuid/deploy` - Deploy application
-- `GET /api/v1/applications/:uuid/logs` - Get logs
+- `GET /api/v1/applications/:uuid/deployments` - Get deployment history (NEW in 1.4.17)
+- `GET /api/v1/applications/:uuid/deployment-logs` - Get deployment logs (NEW in 1.4.17)
+- `GET /api/v1/applications/:uuid/logs` - Get runtime logs (container logs)
 - `DELETE /api/v1/applications/:uuid` - Delete application
 
 **Important:** OAuth endpoints (`/oauth/*`) do NOT have the `/api/v1` prefix!
