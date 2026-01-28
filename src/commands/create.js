@@ -8,6 +8,7 @@ const logger = require('../lib/logger');
 const oauth = require('../lib/oauth');
 const inquirer = require('inquirer');
 const { execSync } = require('child_process');
+const errorDisplay = require('../lib/errorDisplay');
 
 async function create(name, options) {
   try {
@@ -281,14 +282,12 @@ async function create(name, options) {
 
     logger.newline();
 
-    const spin = logger.spinner('Creating application...').start();
+    const spin = logger.spinner('Creating application and deploying (this may take up to 5 minutes)...').start();
 
     try {
       const result = await api.createApplication(appData);
 
-      spin.succeed('Application created successfully!');
-
-      // Save project configuration
+      // Always save project configuration (even if deployment failed)
       saveProjectConfig({
         applicationUuid: result.coolify_app_uuid,
         applicationName: result.app_name,
@@ -297,13 +296,35 @@ async function create(name, options) {
         gitRepository: appData.git_repository,
       });
 
+      // Check if deployment failed
+      if (result.success === false) {
+        spin.fail('Deployment failed');
+
+        // Display detailed error information
+        errorDisplay.displayDeploymentError(result, logger);
+
+        // Show recovery instructions
+        errorDisplay.displayCreateRecoveryInstructions(result, logger);
+
+        process.exit(1);
+      }
+
+      // SUCCESS: Application created and deployed
+      spin.succeed('Application created and deployed successfully!');
+
       logger.newline();
-      logger.success('Application created!');
+      logger.success('Your application is live!');
       logger.newline();
       logger.field('Name', result.app_name);
       logger.field('Domain', result.domain);
       logger.field('UUID', result.coolify_app_uuid);
-      logger.field('Status', result.deployment_status);
+      logger.field('Status', result.deployment_status || 'finished');
+      if (result.git_branch) {
+        logger.field('Branch', result.git_branch);
+      }
+      if (result.deployment_uuid) {
+        logger.field('Deployment ID', result.deployment_uuid);
+      }
       logger.newline();
 
       // Show next steps

@@ -275,6 +275,71 @@ saac create web -s web -r git@git... -t abc123 \
 - Saves project config to `.saac/config.json` after successful creation
 - Displays next steps and useful commands
 
+**Deployment Behavior (NEW):**
+
+The `create` command now **waits for the initial deployment to complete** (up to 5 minutes) before returning.
+
+**Response Time:**
+- Typical: 30-120 seconds
+- Maximum: 5 minutes (timeout)
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "coolify_app_uuid": "...",
+  "app_name": "my-app",
+  "domain": "https://myapp.startanaicompany.com",
+  "deployment_status": "finished",
+  "deployment_uuid": "...",
+  "git_branch": "master"
+}
+```
+
+**Failure Response (HTTP 200 with success: false):**
+```json
+{
+  "success": false,
+  "coolify_app_uuid": "...",
+  "app_name": "my-app",
+  "deployment_status": "failed",
+  "message": "Port 8080 is already in use. Remove host port bindings...",
+  "errors": [
+    {
+      "type": "PORT_CONFLICT",
+      "message": "Port 8080 is already in use...",
+      "detail": "Bind for 0.0.0.0:8080 failed..."
+    }
+  ],
+  "relevant_logs": [...],
+  "last_logs": [...]
+}
+```
+
+**Error Types:**
+- `PORT_CONFLICT` - Host port binding conflict in docker-compose.yml
+- `BUILD_FAILED` - Build process returned non-zero exit code
+- `TIMEOUT` - Deployment didn't complete in 5 minutes
+- `UNKNOWN` - Generic deployment failure
+
+**Important Notes:**
+1. **Application is created even if deployment fails** - the UUID is saved to `.saac/config.json`
+2. Failed deployments return HTTP 200 (not 4xx) with `success: false`
+3. CLI must check the `success` field, not just HTTP status code
+4. Detailed error information is displayed with actionable advice
+5. User can fix the issue and run `saac deploy` to retry
+
+**Error Display:**
+The CLI displays comprehensive error information:
+- Error summary message
+- Structured error details with types
+- Relevant error logs (filtered)
+- Last log lines for context
+- Actionable advice based on error type:
+  - `PORT_CONFLICT`: Remove host port bindings from docker-compose.yml
+  - `BUILD_FAILED`: Check Dockerfile, run `docker build .` locally
+  - `TIMEOUT`: Check `saac status` and `saac logs`, may still be running
+
 ### Update Command Implementation
 
 The `update` command allows modifying application configuration after deployment using `PATCH /api/v1/applications/:uuid`.
@@ -373,7 +438,7 @@ saac git disconnect git.startanaicompany.com
 
 ### Deploy Command Implementation
 
-The `deploy` command triggers deployment for the current application.
+The `deploy` command triggers deployment and **waits for completion** (up to 5 minutes).
 
 **Usage:**
 ```bash
@@ -385,13 +450,57 @@ saac deploy --force
 1. Validates authentication (session token not expired)
 2. Checks for project config (`.saac/config.json`)
 3. Makes POST request to `/api/v1/applications/:uuid/deploy`
-4. Displays deployment status and deployment ID
-5. Shows command to follow logs: `saac logs --follow`
+4. **Waits for deployment to complete** (up to 5 minutes)
+5. Displays deployment status with detailed error information on failure
 
-**Response Fields:**
-- `status` - Application status after deployment triggered
-- `domain` - Application domain (if available)
-- `deployment_id` - Unique ID for this deployment
+**Response Time:**
+- Typical: 30-120 seconds
+- Maximum: 5 minutes (timeout)
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "status": "finished",
+  "deployment_uuid": "...",
+  "git_branch": "master",
+  "domain": "https://myapp.startanaicompany.com",
+  "traefik_status": "queued"
+}
+```
+
+**Failure Response:**
+```json
+{
+  "success": false,
+  "status": "failed",
+  "message": "Build failed with exit code 1",
+  "errors": [
+    {
+      "type": "BUILD_FAILED",
+      "message": "Build failed with exit code 1",
+      "detail": "npm ERR! code ELIFECYCLE..."
+    }
+  ],
+  "relevant_logs": [...],
+  "last_logs": [...]
+}
+```
+
+**Error Types:**
+- `PORT_CONFLICT` - Host port binding conflict
+- `BUILD_FAILED` - Build process failed
+- `TIMEOUT` - Deployment didn't complete in 5 minutes
+- `UNKNOWN` - Generic failure
+
+**Error Display:**
+The CLI displays:
+1. Error summary message
+2. Structured error details with types
+3. Relevant logs (filtered error logs)
+4. Last 5 log lines for context
+5. Actionable advice based on error type
+6. Suggestion to view full logs with `saac logs --follow`
 
 **Note:** The `--force` flag is defined in the CLI but not currently used by the API.
 

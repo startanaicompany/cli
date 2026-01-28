@@ -5,6 +5,7 @@
 const api = require('../lib/api');
 const { getProjectConfig, isAuthenticated } = require('../lib/config');
 const logger = require('../lib/logger');
+const errorDisplay = require('../lib/errorDisplay');
 
 async function deploy(options) {
   try {
@@ -25,30 +26,62 @@ async function deploy(options) {
     const { applicationUuid, applicationName } = projectConfig;
 
     logger.section(`Deploying ${applicationName}`);
+    logger.newline();
 
-    const spin = logger.spinner('Triggering deployment...').start();
+    const spin = logger.spinner('Deploying application (waiting for completion, up to 5 minutes)...').start();
 
     try {
       const result = await api.deployApplication(applicationUuid);
 
-      spin.succeed('Deployment triggered!');
+      // Check if deployment failed
+      if (result.success === false) {
+        spin.fail('Deployment failed');
+
+        // Display detailed error information
+        errorDisplay.displayDeploymentError(result, logger);
+
+        // Handle timeout specifically
+        if (result.status === 'timeout') {
+          errorDisplay.displayTimeoutInstructions(logger);
+        }
+
+        process.exit(1);
+      }
+
+      // SUCCESS: Deployment completed
+      spin.succeed('Deployment completed successfully!');
 
       logger.newline();
-      logger.success('Deployment started successfully');
+      logger.success('Your application has been deployed!');
       logger.newline();
       logger.field('Application', applicationName);
       logger.field('Status', result.status);
+      if (result.git_branch) {
+        logger.field('Branch', result.git_branch);
+      }
       if (result.domain) {
         logger.field('Domain', result.domain);
       }
-      logger.field('Deployment ID', result.deployment_id);
+      if (result.deployment_uuid || result.deployment_id) {
+        logger.field('Deployment ID', result.deployment_uuid || result.deployment_id);
+      }
       logger.newline();
-      logger.info(
-        `View logs with: ${logger.chalk.yellow('saac logs --follow')}`
-      );
+
+      // Show Traefik status if present
+      if (result.traefik_status === 'queued') {
+        logger.info('Routing configuration is being applied (may take a few seconds)');
+        logger.newline();
+      } else if (result.traefik_status === 'failed') {
+        logger.warn('Routing configuration failed - application may not be accessible');
+        logger.newline();
+      }
+
+      logger.info('Useful commands:');
+      logger.log(`  saac logs --follow       View live deployment logs`);
+      logger.log(`  saac status              Check application status`);
 
     } catch (error) {
-      spin.fail('Deployment failed');
+      spin.fail('Deployment request failed');
       throw error;
     }
   } catch (error) {
