@@ -144,8 +144,11 @@ async function shell(options = {}) {
     logger.section('─'.repeat(60));
     logger.newline();
 
-    // Open shell with environment sourced
-    const proc = spawn(userShell, [], {
+    // Simple approach: Use bash to source env file, then exec into requested shell
+    // This works reliably for all shells
+    const shellCommand = `source "${tempFile}" && exec ${userShell}`;
+
+    const shellProc = spawn('/bin/bash', ['-c', shellCommand], {
       stdio: 'inherit',
       cwd: process.cwd(),
       env: {
@@ -153,113 +156,22 @@ async function shell(options = {}) {
         SAAC_ENV_LOADED: '1',
         SAAC_APP_NAME: applicationName,
         SAAC_APP_UUID: applicationUuid
-      },
-      shell: '/bin/bash'
+      }
     });
 
-    // Source the environment before the shell starts
-    // We do this by prepending the source command to the shell's rc file temporarily
-    const sourceCmd = `source "${tempFile}"`;
+    shellProc.on('exit', (code) => {
+      cleanup();
+      logger.newline();
+      logger.success('✓ Shell closed, environment variables cleared');
+      process.exit(code || 0);
+    });
 
-    // For bash, we can use --rcfile
-    // For zsh, we need a different approach
-    let shellArgs = [];
-
-    if (shellName === 'bash') {
-      // Create temporary RC file that sources env vars then loads user's bashrc
-      const tempRc = path.join(tempDir, `saac-bashrc-${applicationUuid}`);
-      const userBashrc = path.join(os.homedir(), '.bashrc');
-      let rcContent = `source "${tempFile}"\n`;
-      if (fs.existsSync(userBashrc)) {
-        rcContent += `source "${userBashrc}"\n`;
-      }
-      fs.writeFileSync(tempRc, rcContent, { mode: 0o600 });
-
-      const bashProc = spawn('bash', ['--rcfile', tempRc], {
-        stdio: 'inherit',
-        cwd: process.cwd()
-      });
-
-      bashProc.on('exit', (code) => {
-        cleanup();
-        try {
-          fs.unlinkSync(tempRc);
-        } catch (err) {
-          // Ignore
-        }
-        logger.newline();
-        logger.success('✓ Shell closed, environment variables cleared');
-        process.exit(code || 0);
-      });
-
-      bashProc.on('error', (error) => {
-        cleanup();
-        logger.newline();
-        logger.error(`Failed to open shell: ${error.message}`);
-        process.exit(1);
-      });
-    } else if (shellName === 'zsh') {
-      // For zsh, use ZDOTDIR approach
-      const tempZdotdir = path.join(tempDir, `saac-zsh-${applicationUuid}`);
-      fs.mkdirSync(tempZdotdir, { recursive: true, mode: 0o700 });
-
-      const tempZshrc = path.join(tempZdotdir, '.zshrc');
-      const userZshrc = path.join(os.homedir(), '.zshrc');
-      let rcContent = `source "${tempFile}"\n`;
-      if (fs.existsSync(userZshrc)) {
-        rcContent += `source "${userZshrc}"\n`;
-      }
-      fs.writeFileSync(tempZshrc, rcContent, { mode: 0o600 });
-
-      const zshProc = spawn('zsh', [], {
-        stdio: 'inherit',
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          ZDOTDIR: tempZdotdir
-        }
-      });
-
-      zshProc.on('exit', (code) => {
-        cleanup();
-        try {
-          fs.unlinkSync(tempZshrc);
-          fs.rmdirSync(tempZdotdir);
-        } catch (err) {
-          // Ignore
-        }
-        logger.newline();
-        logger.success('✓ Shell closed, environment variables cleared');
-        process.exit(code || 0);
-      });
-
-      zshProc.on('error', (error) => {
-        cleanup();
-        logger.newline();
-        logger.error(`Failed to open shell: ${error.message}`);
-        process.exit(1);
-      });
-    } else {
-      // Fallback: Use bash to source then exec into the requested shell
-      const shellProc = spawn('/bin/bash', ['-c', `source "${tempFile}" && exec ${userShell}`], {
-        stdio: 'inherit',
-        cwd: process.cwd()
-      });
-
-      shellProc.on('exit', (code) => {
-        cleanup();
-        logger.newline();
-        logger.success('✓ Shell closed, environment variables cleared');
-        process.exit(code || 0);
-      });
-
-      shellProc.on('error', (error) => {
-        cleanup();
-        logger.newline();
-        logger.error(`Failed to open shell: ${error.message}`);
-        process.exit(1);
-      });
-    }
+    shellProc.on('error', (error) => {
+      cleanup();
+      logger.newline();
+      logger.error(`Failed to open shell: ${error.message}`);
+      process.exit(1);
+    });
 
   } catch (error) {
     logger.error(error.response?.data?.message || error.message);
