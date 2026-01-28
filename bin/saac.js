@@ -232,9 +232,7 @@ program
 
 program
   .command('shell')
-  .description('Open interactive shell with remote environment variables')
-  .option('--cmd <shell>', 'Shell to use (default: $SHELL or /bin/bash)')
-  .option('--sync', 'Force refresh environment variables (skip cache)')
+  .description('Open interactive remote shell (inside container via WebSocket)')
   .action(shell);
 
 // Remote execution commands

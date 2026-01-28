@@ -838,57 +838,101 @@ saac run -q npm test                # Quiet mode (suppress warnings)
 
 ---
 
-#### Shell Command Implementation
+#### Shell Command Implementation (Project Aurora)
 
-The `shell` command opens an interactive shell with remote environment variables loaded.
+The `shell` command provides a **TRUE remote shell** - you're actually inside the Docker container, not just a local shell with env vars loaded. This is powered by Project Aurora (WebSocket + Docker + tmux).
+
+**Key Difference from Phase 1:**
+- **OLD (Phase 1)**: Local shell with remote env vars → wrong filesystem, wrong tools, wrong paths
+- **NEW (Aurora)**: Remote shell inside container → TRUE remote experience like SSH/Railway
 
 **Usage:**
 ```bash
-saac shell                         # Open shell (uses $SHELL or /bin/bash)
-saac shell --cmd zsh               # Use specific shell
-saac shell --sync                  # Force refresh env vars (skip cache)
+saac shell    # Connect to remote container shell
 ```
 
+**Architecture:**
+- WebSocket client connects to backend server
+- Backend creates Docker container with tmux session
+- Commands sent via WebSocket, executed in container
+- Terminal output captured from tmux and streamed back
+- Session persists even after disconnect (up to 1 hour idle)
+
 **Implementation Details:**
-- Fetches env vars from `GET /applications/:uuid/env/export`
-- Uses 5-minute in-memory cache (same as `run`)
-- Creates temp file for env vars at `/tmp/saac-env-{uuid}.sh`
-- Special handling for bash and zsh (custom RC files)
-- Sources environment before shell starts
-- Automatic cleanup when shell exits
+- Uses `ws` package for WebSocket client
+- Connects to: `wss://apps.startanaicompany.com/api/v1/shell/connect`
+- Authentication via session token or API key
+- Readline interface for local terminal interaction
+- Automatic reconnection on disconnect (up to 3 attempts)
+- Heartbeat ping/pong every 30 seconds
 
-**Shell-Specific Behavior:**
-- **bash:** Uses `--rcfile` with temporary RC that sources env + user's `.bashrc`
-- **zsh:** Uses `ZDOTDIR` with temporary `.zshrc` that sources env + user's `.zshrc`
-- **other:** Fallback to bash with source then exec
+**Session Lifecycle:**
+1. CLI connects via WebSocket with auth token
+2. Backend creates session record in database (status: 'creating')
+3. Python daemon creates Docker container with tmux
+4. Container ready, status updates to 'active'
+5. User interacts with remote shell
+6. On disconnect, session marked 'idle' (persists for 1 hour)
+7. Idle timeout or manual termination cleans up container
 
-**Security Features:**
-- Same as `run` command (0600 permissions, cleanup, warnings)
-- Sets environment variables: `SAAC_ENV_LOADED=1`, `SAAC_APP_NAME`, `SAAC_APP_UUID`
+**Features:**
+- ✅ TRUE remote shell (inside container, not local)
+- ✅ Persistent session (survives reconnections)
+- ✅ Interactive commands (vim, nano, etc work!)
+- ✅ Working directory persists between commands
+- ✅ Command history (up arrow works)
+- ✅ Real-time output streaming
+- ✅ Ctrl+C sends to remote shell
+
+**Connection Handling:**
+- 30-second timeout for initial container creation
+- Auto-reconnect on network issues (3 attempts, exponential backoff)
+- Graceful cleanup on exit (Ctrl+D or "exit" command)
 
 **User Experience:**
 ```bash
 $ saac shell
-✓ Environment variables retrieved
 
-🚀 Opening shell with 6 environment variables loaded
+Remote Shell: my-app
 
-  Application:  my-app
-  Shell:        bash
-  Variables:    6
+Connecting to container...
+This may take up to 30 seconds for container creation.
 
-⚠️  Secrets are exposed on local machine
-Temporary file: /tmp/saac-env-abc123.sh (will be deleted on exit)
+✓ Connected to remote container
+Container is being created, please wait...
+✓ Container is ready!
+Type commands below. Press Ctrl+D or type "exit" to quit.
 
-Type "exit" or press Ctrl+D to close the shell
-────────────────────────────────────────────────────────────────
+root@container:/app# ls -la
+total 48
+drwxr-xr-x  6 root root 4096 Jan 28 20:00 .
+drwxr-xr-x 18 root root 4096 Jan 28 20:00 ..
+-rw-r--r--  1 root root  220 Jan 28 20:00 package.json
+drwxr-xr-x  2 root root 4096 Jan 28 20:00 src
 
-bash-5.0$ echo $NODE_ENV
-production
-bash-5.0$ exit
+root@container:/app# cd src && pwd
+/app/src
 
-✓ Shell closed, environment variables cleared
+root@container:/app/src# exit
+
+Disconnecting from remote shell...
 ```
+
+**Error Handling:**
+- `Authentication failed` → Token expired, run `saac login`
+- `Access denied` → User doesn't own the application
+- `Connection timeout` → Server unavailable or container failed to start
+- `Max reconnection attempts` → Network issue, try again later
+
+**Backend Requirements:**
+- WebSocket server at `/api/v1/shell/connect` endpoint
+- PostgreSQL tables: `shell_sessions`, `shell_commands`, `shell_output`
+- Python daemon managing Docker containers with tmux
+- Session cleanup after 1 hour idle or 4 hours total
+
+**Location:** `src/commands/shell.js` (403 lines, complete rewrite for Aurora)
+
+**Note:** Backend infrastructure (WebSocket server + Python daemon) must be deployed before this command works. CLI is ready, waiting for backend Phase 3.5 deployment.
 
 **Location:** `src/commands/shell.js`
 
@@ -1075,10 +1119,15 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - ✅ `saac env set/get/list` - Manage environment variables (fully implemented)
 - ✅ `saac domain set/show` - Manage application domain (fully implemented)
 
-**Local Development (NEW in 1.5.0):**
+**Local Development (Phase 1):**
 - ✅ `saac run <command>` - Execute local command with remote environment variables
-- ✅ `saac shell` - Open interactive shell with remote environment variables
 - Features: 5-minute caching, secure temp files (0600), automatic cleanup, rate limit handling
+
+**Remote Shell (Project Aurora - Phase 3.5):**
+- ✅ `saac shell` - TRUE remote shell inside Docker container via WebSocket
+- Features: Persistent sessions (tmux), interactive (vim/nano work), real-time output, auto-reconnect
+- Architecture: WebSocket client + PostgreSQL + Python daemon + Docker + tmux
+- **Status:** CLI ready, waiting for backend deployment
 
 **Remote Execution (NEW in 1.6.0):**
 - ✅ `saac exec <command>` - Execute commands in remote container

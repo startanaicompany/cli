@@ -44,7 +44,8 @@
     "open": "^8.4.2",
     "ora": "^5.4.1",
     "table": "^6.8.1",
-    "validator": "^13.11.0"
+    "validator": "^13.11.0",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "eslint": "^8.54.0"
