@@ -98,34 +98,6 @@ async function shell(options = {}) {
 
     logger.newline();
 
-    // Create temp file for environment variables
-    const tempDir = os.tmpdir();
-    const tempFile = path.join(tempDir, `saac-env-${applicationUuid}.sh`);
-
-    // Write export script to temp file with secure permissions
-    fs.writeFileSync(tempFile, envData.export_script, { mode: 0o600 });
-
-    // Setup cleanup handlers
-    const cleanup = () => {
-      try {
-        if (fs.existsSync(tempFile)) {
-          fs.unlinkSync(tempFile);
-        }
-      } catch (err) {
-        // Ignore cleanup errors
-      }
-    };
-
-    process.on('SIGINT', () => {
-      cleanup();
-      process.exit(130);
-    });
-
-    process.on('SIGTERM', () => {
-      cleanup();
-      process.exit(143);
-    });
-
     // Determine shell to use
     const userShell = options.cmd || process.env.SHELL || '/bin/bash';
     const shellName = path.basename(userShell);
@@ -138,36 +110,34 @@ async function shell(options = {}) {
     logger.field('  Variables', envData.variable_count);
     logger.newline();
     logger.warn('⚠️  Secrets are exposed on local machine');
-    logger.info(`Temporary file: ${tempFile} (will be deleted on exit)`);
     logger.newline();
     logger.info('Type "exit" or press Ctrl+D to close the shell');
     logger.section('─'.repeat(60));
     logger.newline();
 
-    // Simple approach: Use bash to source env file, then exec into requested shell
-    // Force interactive mode with -i flag
-    const shellCommand = `source "${tempFile}" && exec ${userShell} -i`;
+    // Merge remote environment variables with current process env
+    const mergedEnv = {
+      ...process.env,
+      ...envData.environment,
+      SAAC_ENV_LOADED: '1',
+      SAAC_APP_NAME: applicationName,
+      SAAC_APP_UUID: applicationUuid
+    };
 
-    const shellProc = spawn('/bin/bash', ['-c', shellCommand], {
+    // Spawn shell directly with merged environment
+    const shellProc = spawn(userShell, [], {
       stdio: 'inherit',
       cwd: process.cwd(),
-      env: {
-        ...process.env,
-        SAAC_ENV_LOADED: '1',
-        SAAC_APP_NAME: applicationName,
-        SAAC_APP_UUID: applicationUuid
-      }
+      env: mergedEnv
     });
 
     shellProc.on('exit', (code) => {
-      cleanup();
       logger.newline();
       logger.success('✓ Shell closed, environment variables cleared');
       process.exit(code || 0);
     });
 
     shellProc.on('error', (error) => {
-      cleanup();
       logger.newline();
       logger.error(`Failed to open shell: ${error.message}`);
       process.exit(1);
