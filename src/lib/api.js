@@ -259,6 +259,15 @@ async function getApiKeyInfo() {
   return response.data;
 }
 
+/**
+ * Get environment variables for an application
+ */
+async function getEnvironmentVariables(uuid) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/env`);
+  return response.data;
+}
+
 module.exports = {
   createClient,
   login,
@@ -272,6 +281,7 @@ module.exports = {
   deployApplication,
   getApplicationLogs,
   updateEnvironmentVariables,
+  getEnvironmentVariables,
   updateDomain,
   deleteApplication,
   healthCheck,

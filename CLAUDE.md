@@ -880,12 +880,14 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - ✅ `saac logs` - View deployment logs (build logs) or runtime logs (container logs)
 - ✅ `saac list` - List all applications with table display
 - ✅ `saac status` - Show login status, user info, and applications
+- ✅ `saac delete` - Delete application with confirmation prompt
+- ✅ `saac whoami` - Show current user information
 
-**Incomplete Commands:**
-- ⏳ `saac env` - Not implemented (stub only, needs to export object with set/get/list methods)
-- ⏳ `saac domain` - Not implemented (stub only, needs to export object with set/show methods)
-- ⏳ `saac delete` - Not implemented (stub only)
-- ⏳ `saac whoami` - Not implemented (stub only)
+**Environment & Domain Management:**
+- ✅ `saac env set/get/list` - Manage environment variables (fully implemented)
+- ✅ `saac domain set/show` - Manage application domain (fully implemented)
+
+**All Commands Implemented!** ✅ No incomplete commands remain
 
 ### Critical Learnings & Bug Fixes
 
