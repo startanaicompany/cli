@@ -124,8 +124,22 @@ async function shell(options = {}) {
       SAAC_APP_UUID: applicationUuid
     };
 
+    // Determine shell arguments for interactive mode
+    let shellArgs = [];
+    if (shellName === 'bash' || shellName === 'sh') {
+      shellArgs = ['-i']; // Interactive mode
+    } else if (shellName === 'zsh') {
+      shellArgs = ['-i']; // Interactive mode
+    } else if (shellName === 'fish') {
+      shellArgs = ['-i']; // Interactive mode
+    }
+    // If custom shell, try -i flag (most shells support it)
+    else if (!userShell.includes('/')) {
+      shellArgs = ['-i'];
+    }
+
     // Spawn shell directly with merged environment
-    const shellProc = spawn(userShell, [], {
+    const shellProc = spawn(userShell, shellArgs, {
       stdio: 'inherit',
       cwd: process.cwd(),
       env: mergedEnv
