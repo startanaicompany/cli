@@ -800,15 +800,106 @@ saac logs --since 1h
 }
 ```
 
-### Incomplete Commands
+### Local Development Commands (NEW in 1.5.0)
 
-Several commands still need implementation:
-- `src/commands/env.js` - Not implemented (stub only)
-- `src/commands/domain.js` - Not implemented (stub only)
-- `src/commands/delete.js` - Not implemented (stub only)
-- `src/commands/whoami.js` - Not implemented (stub only)
+#### Run Command Implementation
 
-**Important:** The `env` and `domain` commands need to export OBJECTS with subcommand methods (e.g., `module.exports = { set, get, list }`), not simple functions. See `bin/saac.js:189-219` for how these are called.
+The `run` command allows executing local commands with remote environment variables from the deployed application.
+
+**Usage:**
+```bash
+saac run <command>                  # Run command with remote env vars
+saac run npm start                  # Start app with production env
+saac run --sync npm run build       # Force refresh env vars (skip cache)
+saac run -q npm test                # Quiet mode (suppress warnings)
+```
+
+**Implementation Details:**
+- Fetches env vars from `GET /applications/:uuid/env/export`
+- Uses 5-minute in-memory cache (TTL: 300 seconds)
+- Creates temp file at `/tmp/saac-env-{uuid}.sh` with 0600 permissions
+- Sources env file and executes command in subshell
+- Automatic cleanup on exit (SIGINT/SIGTERM handlers)
+- Rate limit handling (10 requests/minute per user)
+
+**Security Features:**
+- Temp files with 0600 permissions (owner read-write only)
+- Automatic cleanup on process exit
+- Warning message about exposed secrets
+- Cache reduces API calls (rate limit protection)
+
+**Error Handling:**
+- 429 Rate Limit: Shows retry time, mentions caching
+- 403 Forbidden: User doesn't own application
+- 404 Not Found: Application doesn't exist
+- Network failures: Graceful error messages
+
+**Location:** `src/commands/run.js`
+
+---
+
+#### Shell Command Implementation
+
+The `shell` command opens an interactive shell with remote environment variables loaded.
+
+**Usage:**
+```bash
+saac shell                         # Open shell (uses $SHELL or /bin/bash)
+saac shell --cmd zsh               # Use specific shell
+saac shell --sync                  # Force refresh env vars (skip cache)
+```
+
+**Implementation Details:**
+- Fetches env vars from `GET /applications/:uuid/env/export`
+- Uses 5-minute in-memory cache (same as `run`)
+- Creates temp file for env vars at `/tmp/saac-env-{uuid}.sh`
+- Special handling for bash and zsh (custom RC files)
+- Sources environment before shell starts
+- Automatic cleanup when shell exits
+
+**Shell-Specific Behavior:**
+- **bash:** Uses `--rcfile` with temporary RC that sources env + user's `.bashrc`
+- **zsh:** Uses `ZDOTDIR` with temporary `.zshrc` that sources env + user's `.zshrc`
+- **other:** Fallback to bash with source then exec
+
+**Security Features:**
+- Same as `run` command (0600 permissions, cleanup, warnings)
+- Sets environment variables: `SAAC_ENV_LOADED=1`, `SAAC_APP_NAME`, `SAAC_APP_UUID`
+
+**User Experience:**
+```bash
+$ saac shell
+✓ Environment variables retrieved
+
+🚀 Opening shell with 6 environment variables loaded
+
+  Application:  my-app
+  Shell:        bash
+  Variables:    6
+
+⚠️  Secrets are exposed on local machine
+Temporary file: /tmp/saac-env-abc123.sh (will be deleted on exit)
+
+Type "exit" or press Ctrl+D to close the shell
+────────────────────────────────────────────────────────────────
+
+bash-5.0$ echo $NODE_ENV
+production
+bash-5.0$ exit
+
+✓ Shell closed, environment variables cleared
+```
+
+**Location:** `src/commands/shell.js`
+
+---
+
+**Backend Requirements (Implemented):**
+- `GET /api/v1/applications/:uuid/env/export` - Export endpoint (deployed 2026-01-28)
+- Returns: `environment` (object), `export_script` (bash format), `dotenv_format` (dotenv format)
+- Rate limit: 10 requests/minute per user
+- Authentication: X-Session-Token or X-API-Key
+- Response includes `expires_in: 300` (5-minute cache recommendation)
 
 **Implementation Pattern for New Commands:**
 1. Require flags, no interactive prompts (exception: `init` uses inquirer for app selection)
@@ -816,15 +907,6 @@ Several commands still need implementation:
 3. Validate inputs before API calls
 4. Use spinners for async operations
 5. Handle errors with descriptive messages
-
-**Example Module Structure for env.js:**
-```javascript
-async function set(vars) { /* implementation */ }
-async function get(key) { /* implementation */ }
-async function list() { /* implementation */ }
-
-module.exports = { set, get, list };
-```
 
 ### MailHog Integration
 
@@ -845,7 +927,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - During registration, Gitea username can be auto-detected or manually provided
 - Applications reference repositories in the format: `git@git.startanaicompany.com:user/repo.git`
 
-## Current Status - Version 1.4.17
+## Current Status - Version 1.5.0
 
 ### Completed Features
 
@@ -886,6 +968,11 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 **Environment & Domain Management:**
 - ✅ `saac env set/get/list` - Manage environment variables (fully implemented)
 - ✅ `saac domain set/show` - Manage application domain (fully implemented)
+
+**Local Development (NEW in 1.5.0):**
+- ✅ `saac run <command>` - Execute local command with remote environment variables
+- ✅ `saac shell` - Open interactive shell with remote environment variables
+- Features: 5-minute caching, secure temp files (0600), automatic cleanup, rate limit handling
 
 **All Commands Implemented!** ✅ No incomplete commands remain
 
@@ -929,7 +1016,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 
 ### API Endpoint Reference
 
-**Correct Endpoint Paths (v1.4.17):**
+**Correct Endpoint Paths (v1.5.0):**
 - `POST /api/v1/users/register` - Register (email only, git_username optional)
 - `POST /api/v1/users/verify` - Verify email with code
 - `POST /api/v1/auth/login` - Login with API key, get session token
@@ -948,6 +1035,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - `GET /api/v1/applications/:uuid/deployments` - Get deployment history (NEW in 1.4.17)
 - `GET /api/v1/applications/:uuid/deployment-logs` - Get deployment logs (NEW in 1.4.17)
 - `GET /api/v1/applications/:uuid/logs` - Get runtime logs (container logs)
+- `GET /api/v1/applications/:uuid/env/export` - Export environment variables (NEW in 1.5.0)
 - `DELETE /api/v1/applications/:uuid` - Delete application
 
 **Important:** OAuth endpoints (`/oauth/*`) do NOT have the `/api/v1` prefix!
@@ -1068,4 +1156,4 @@ Before publishing to npm:
 - `dotenv` - Environment variables
 - `open` - Open browser for OAuth (v8.4.2 for compatibility with chalk v4)
 
-**Version:** 1.4.17 (current)
+**Version:** 1.5.0 (current)
