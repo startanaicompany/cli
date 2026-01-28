@@ -395,6 +395,101 @@ saac deploy --force
 
 **Note:** The `--force` flag is defined in the CLI but not currently used by the API.
 
+### OTP-Based Login (NEW in 1.4.16)
+
+The login command now supports two authentication methods:
+
+**Method 1: Login with API Key (Fast Path)**
+```bash
+saac login -e user@example.com -k cw_abc123
+# → Immediate session token, no email verification needed
+```
+
+**Method 2: Login with OTP (Recovery Path)**
+```bash
+# Step 1: Request OTP
+saac login -e user@example.com
+# → Verification code sent to email (6 digits, 5-minute expiration)
+
+# Step 2: Verify OTP
+saac login -e user@example.com --otp 123456
+# → Session token created, user is now logged in
+```
+
+**Why This Feature?**
+
+Solves the **API key lockout problem**:
+- User loses API key
+- All sessions expire
+- Cannot login (no API key)
+- Cannot regenerate key (requires login)
+- **LOCKED OUT** ❌
+
+With OTP login:
+- User can always recover via email ✅
+- No support tickets needed ✅
+- Self-service account recovery ✅
+
+**Implementation Details:**
+
+The `login.js` command now has three modes:
+1. **API key login** - If `-k` flag provided (existing flow)
+2. **OTP request** - If no `-k` or `--otp` flag (new flow)
+3. **OTP verification** - If `--otp` flag provided (new flow)
+
+**Backend Requirements:**
+- `POST /api/v1/auth/login-otp` - Generate and send OTP
+- `POST /api/v1/auth/verify-otp` - Verify OTP and create session
+
+See `/data/sharedinfo/login-feature-update.md` for complete API specifications.
+
+### API Key Management (NEW in 1.4.16)
+
+Users can now regenerate their API keys if lost or compromised.
+
+**Commands:**
+
+```bash
+# Regenerate API key (requires authentication)
+saac keys regenerate
+# → Shows new API key (only once!)
+
+# Show API key info
+saac keys show
+# → Displays key prefix, created date, last used
+```
+
+**Recovery Flow:**
+
+```bash
+# 1. User loses API key but is not logged in
+saac login -e user@example.com
+# → OTP sent to email
+
+# 2. Verify OTP
+saac login -e user@example.com --otp 123456
+# → Logged in with session token
+
+# 3. Generate new API key
+saac keys regenerate
+# → New API key: cw_new_key_xyz...
+
+# 4. On next machine, use new API key
+saac login -e user@example.com -k cw_new_key_xyz...
+```
+
+**Security Notes:**
+- Regenerating API key invalidates the old key immediately
+- Existing session tokens remain valid (no disruption)
+- Email notification sent when key is regenerated
+- Full API key shown only once (must be saved)
+
+**Backend Requirements:**
+- `POST /api/v1/users/regenerate-key` - Generate new API key
+- `GET /api/v1/users/api-key` - Get API key info (optional)
+
+See `/data/sharedinfo/login-feature-update.md` for complete specifications.
+
 ### Init Command Implementation
 
 The `init` command links an existing SAAC application to the current directory.
@@ -499,12 +594,19 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 
 **Authentication & Sessions:**
 - ✅ `saac register` - Register with email only (git_username auto-detected from email)
-- ✅ `saac login` - Login with email + API key, receives 1-year session token
+- ✅ `saac login` - Two methods: API key (fast) or OTP (recovery)
+  - `saac login -e email -k api-key` - Login with API key
+  - `saac login -e email` - Request OTP via email
+  - `saac login -e email --otp code` - Verify OTP and login
 - ✅ `saac verify` - Email verification, shows FULL API key for user to save
 - ✅ `saac logout` - Logout from current device
 - ✅ `saac logout-all` - Revoke all sessions
 - ✅ `saac sessions` - List all active sessions
 - ✅ `saac whoami` - Show current user info
+
+**API Key Management (NEW in 1.4.16):**
+- ✅ `saac keys regenerate` - Generate new API key (invalidates old one)
+- ✅ `saac keys show` - Show API key information (prefix, created, last used)
 
 **Git OAuth (NEW in 1.4.0):**
 - ✅ `saac git connect [host]` - OAuth flow for Git authentication
