@@ -9,8 +9,9 @@ const pkg = require('../../package.json');
 
 /**
  * Create axios instance with base configuration
+ * @param {number} timeout - Timeout in milliseconds (default: 30000)
  */
-function createClient() {
+function createClient(timeout = 30000) {
   const user = getUser();
   const envApiKey = process.env.SAAC_API_KEY; // For CI/CD
 
@@ -33,7 +34,7 @@ function createClient() {
 
   return axios.create({
     baseURL: getApiUrl(),
-    timeout: 30000,
+    timeout: timeout,
     headers,
   });
 }
@@ -88,9 +89,11 @@ async function getUserInfo() {
 
 /**
  * Create a new application
+ * Note: This waits for deployment to complete (up to 5 minutes)
  */
 async function createApplication(appData) {
-  const client = createClient();
+  // Use 5-minute timeout for deployment waiting
+  const client = createClient(300000); // 5 minutes
   const response = await client.post('/applications', appData);
   return response.data;
 }
@@ -115,9 +118,11 @@ async function getApplication(uuid) {
 
 /**
  * Deploy application
+ * Note: This waits for deployment to complete (up to 5 minutes)
  */
 async function deployApplication(uuid) {
-  const client = createClient();
+  // Use 5-minute timeout for deployment waiting
+  const client = createClient(300000); // 5 minutes
   const response = await client.post(`/applications/${uuid}/deploy`);
   return response.data;
 }
