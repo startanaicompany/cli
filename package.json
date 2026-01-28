@@ -1,6 +1,6 @@
 {
   "name": "@startanaicompany/cli",
-  "version": "1.4.16",
+  "version": "1.4.17",
   "description": "Official CLI for StartAnAiCompany.com - Deploy AI recruitment sites with ease",
   "main": "src/index.js",
   "bin": {
