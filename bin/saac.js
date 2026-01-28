@@ -33,6 +33,7 @@ const whoami = require('../src/commands/whoami');
 const manual = require('../src/commands/manual');
 const run = require('../src/commands/run');
 const shell = require('../src/commands/shell');
+const execCmd = require('../src/commands/exec');
 
 // Configure CLI
 program
@@ -235,6 +236,29 @@ program
   .option('--cmd <shell>', 'Shell to use (default: $SHELL or /bin/bash)')
   .option('--sync', 'Force refresh environment variables (skip cache)')
   .action(shell);
+
+// Remote execution commands
+program
+  .command('exec [command]')
+  .description('Execute command in remote container')
+  .option('--workdir <path>', 'Working directory (default: /app)')
+  .option('--timeout <seconds>', 'Timeout in seconds (default: 30, max: 300)', '30')
+  .option('--history', 'View execution history')
+  .option('--limit <number>', 'Limit for history (default: 20, max: 100)', '20')
+  .option('--offset <number>', 'Offset for history pagination (default: 0)', '0')
+  .action((command, options) => {
+    if (options.history) {
+      execCmd.history(options);
+    } else if (command) {
+      execCmd.exec(command, options);
+    } else {
+      console.error('Error: command is required (unless using --history)');
+      console.log('\nUsage:');
+      console.log('  saac exec <command>           Execute command');
+      console.log('  saac exec --history           View execution history');
+      process.exit(1);
+    }
+  });
 
 // Environment variable commands
 const envCommand = program

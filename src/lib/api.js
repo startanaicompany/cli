@@ -268,6 +268,28 @@ async function getEnvironmentVariables(uuid) {
   return response.data;
 }
 
+/**
+ * Execute a command in the application container
+ * @param {string} uuid - Application UUID
+ * @param {object} execRequest - { command, workdir, timeout }
+ */
+async function executeCommand(uuid, execRequest) {
+  const client = createClient();
+  const response = await client.post(`/applications/${uuid}/exec`, execRequest);
+  return response.data;
+}
+
+/**
+ * Get execution history for an application
+ * @param {string} uuid - Application UUID
+ * @param {object} params - { limit, offset }
+ */
+async function getExecutionHistory(uuid, params = {}) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/exec/history`, { params });
+  return response.data;
+}
+
 module.exports = {
   createClient,
   login,
@@ -291,4 +313,6 @@ module.exports = {
   getApiKeyInfo,
   getDeployments,
   getDeploymentLogs,
+  executeCommand,
+  getExecutionHistory,
 };

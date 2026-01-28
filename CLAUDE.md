@@ -894,12 +894,118 @@ bash-5.0$ exit
 
 ---
 
+### Remote Execution Commands (NEW in 1.6.0)
+
+#### Exec Command Implementation
+
+The `exec` command allows executing commands directly in the deployed application's container.
+
+**Usage:**
+```bash
+saac exec "npm run db:migrate"                    # Run database migrations
+saac exec "npm run build" --timeout 120           # With custom timeout
+saac exec "python manage.py collectstatic" --workdir /app/backend
+saac exec --history                               # View execution history
+saac exec --history --limit 50                    # Show more history
+```
+
+**Implementation Details:**
+- Sends command to `POST /applications/:uuid/exec`
+- Backend validates command against allowlist
+- Python daemon executes via Docker API (no shell interpretation!)
+- Returns: execution_id, exit_code, stdout, stderr, duration
+- Command runs in container as detected user (not root)
+
+**Architecture:**
+```
+CLI → Backend API → Database (exec_requests table) → Python Daemon → Docker Container
+```
+
+**Security Features:**
+- ✅ **3-layer validation:** Backend allowlist + daemon validation + Docker array execution
+- ✅ **Command allowlist:** npm, node, python, bash, etc. (dangerous commands blocked)
+- ✅ **Dangerous pattern detection:** Blocks `rm -rf`, `| sh`, `$(...)`, etc.
+- ✅ **Rate limiting:** 30 requests per 5 minutes per user
+- ✅ **No shell interpretation:** Commands executed as arrays, not strings
+- ✅ **Non-root execution:** Commands run as app user, never privileged
+- ✅ **Audit logging:** All executions logged with user, command, exit code
+
+**Allowed Commands:**
+- Node.js: `npm`, `node`, `npx`, `yarn`, `pnpm`
+- Python: `python`, `python3`, `pip`, `poetry`
+- Ruby: `bundle`, `rake`, `rails`
+- Build tools: `make`, `cmake`, `go`, `cargo`
+- Shell: `sh`, `bash`, `echo`, `cat`, `ls`, `pwd`, `env`
+- Database: `psql`, `mysql`, `mongosh`
+
+**Error Handling:**
+- 400 Validation Error: Command not in allowlist or dangerous pattern detected
+- 408 Timeout: Command exceeded timeout limit (default: 30s, max: 300s)
+- 429 Rate Limit: Too many exec requests (30 per 5 minutes)
+- 503 Container Not Running: Application container is not active
+- 500 Execution Failed: Container error or daemon issue
+
+**Example Output:**
+```bash
+$ saac exec "echo 'Hello from container!'"
+
+Executing Command: myapp
+──────────────────────────
+
+  Command: echo 'Hello from container!'
+  Working Directory: /app
+  Timeout: 30s
+
+✓ Command executed
+
+✓ Execution ID: eb41b197-e215-4f9e-87ac-80ce57e732a6
+
+  Exit Code: 0
+  Duration: 3531ms
+  Started: 1/28/2026, 8:55:37 PM
+  Completed: 1/28/2026, 8:55:41 PM
+
+Standard Output:
+────────────────────────────────────────────────────────────
+Hello from container!
+────────────────────────────────────────────────────────────
+```
+
+**History Command:**
+```bash
+$ saac exec --history
+
+Execution History: myapp
+────────────────────────
+
+╔══════════╤═══════════╤═════════════╤═══════════╤══════════╤═══════════════╗
+║ ID       │ Command   │ Status      │ Exit Code │ Duration │ Started       ║
+╠══════════╪═══════════╪═════════════╪═══════════╪══════════╪═══════════════╣
+║ eb41b197 │ echo '...'│ ✓ completed │ 0         │ 0s       │ 1/28/26, 8:55 ║
+║ a3f2c891 │ npm run...│ ✗ completed │ 1         │ 5s       │ 1/28/26, 8:50 ║
+╚══════════╧═══════════╧═════════════╧═══════════╧══════════╧═══════════════╝
+
+Showing 2 of 5 executions
+```
+
+**Location:** `src/commands/exec.js`
+
+**Backend Implementation:**
+- Database table: `exec_requests` (status: pending → running → completed/failed/timeout)
+- Python daemon: `/root/exec-daemon/exec_daemon.py` (polls every 2 seconds)
+- Systemd service: `exec-daemon.service` (auto-restart, logs to `/var/log/exec-daemon.log`)
+
+---
+
 **Backend Requirements (Implemented):**
 - `GET /api/v1/applications/:uuid/env/export` - Export endpoint (deployed 2026-01-28)
 - Returns: `environment` (object), `export_script` (bash format), `dotenv_format` (dotenv format)
 - Rate limit: 10 requests/minute per user
 - Authentication: X-Session-Token or X-API-Key
 - Response includes `expires_in: 300` (5-minute cache recommendation)
+- `POST /api/v1/applications/:uuid/exec` - Execute command in container (deployed 2026-01-28)
+- `GET /api/v1/applications/:uuid/exec/history` - View execution history (deployed 2026-01-28)
+- Rate limit: 30 requests per 5 minutes per user
 
 **Implementation Pattern for New Commands:**
 1. Require flags, no interactive prompts (exception: `init` uses inquirer for app selection)
@@ -927,7 +1033,7 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - During registration, Gitea username can be auto-detected or manually provided
 - Applications reference repositories in the format: `git@git.startanaicompany.com:user/repo.git`
 
-## Current Status - Version 1.5.0
+## Current Status - Version 1.6.0
 
 ### Completed Features
 
@@ -973,6 +1079,11 @@ The wrapper API expects Git repositories to be hosted on the StartAnAiCompany Gi
 - ✅ `saac run <command>` - Execute local command with remote environment variables
 - ✅ `saac shell` - Open interactive shell with remote environment variables
 - Features: 5-minute caching, secure temp files (0600), automatic cleanup, rate limit handling
+
+**Remote Execution (NEW in 1.6.0):**
+- ✅ `saac exec <command>` - Execute commands in remote container
+- ✅ `saac exec --history` - View execution history
+- Features: Command allowlist, dangerous pattern detection, rate limiting (30/5min), audit logging
 
 **All Commands Implemented!** ✅ No incomplete commands remain
 
