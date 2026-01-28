@@ -145,8 +145,8 @@ async function shell(options = {}) {
     logger.newline();
 
     // Simple approach: Use bash to source env file, then exec into requested shell
-    // This works reliably for all shells
-    const shellCommand = `source "${tempFile}" && exec ${userShell}`;
+    // Force interactive mode with -i flag
+    const shellCommand = `source "${tempFile}" && exec ${userShell} -i`;
 
     const shellProc = spawn('/bin/bash', ['-c', shellCommand], {
       stdio: 'inherit',
