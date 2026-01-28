@@ -181,6 +181,61 @@ async function healthCheck() {
   return response.data;
 }
 
+/**
+ * Request login OTP (no API key required)
+ */
+async function requestLoginOtp(email) {
+  const client = axios.create({
+    baseURL: getApiUrl(),
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': `saac-cli/${pkg.version} (${os.platform()}; ${os.arch()})`,
+    },
+  });
+
+  const response = await client.post('/auth/login-otp', { email });
+  return response.data;
+}
+
+/**
+ * Verify login OTP and get session token
+ */
+async function verifyLoginOtp(email, otpCode) {
+  const client = axios.create({
+    baseURL: getApiUrl(),
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': `saac-cli/${pkg.version} (${os.platform()}; ${os.arch()})`,
+    },
+  });
+
+  const response = await client.post('/auth/verify-otp', {
+    email,
+    otp_code: otpCode,
+  });
+  return response.data;
+}
+
+/**
+ * Regenerate API key (requires authentication)
+ */
+async function regenerateApiKey() {
+  const client = createClient();
+  const response = await client.post('/users/regenerate-key');
+  return response.data;
+}
+
+/**
+ * Get API key info (prefix, created date, last used)
+ */
+async function getApiKeyInfo() {
+  const client = createClient();
+  const response = await client.get('/users/api-key');
+  return response.data;
+}
+
 module.exports = {
   createClient,
   login,
@@ -197,4 +252,8 @@ module.exports = {
   updateDomain,
   deleteApplication,
   healthCheck,
+  requestLoginOtp,
+  verifyLoginOtp,
+  regenerateApiKey,
+  getApiKeyInfo,
 };

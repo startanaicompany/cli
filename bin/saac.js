@@ -16,6 +16,7 @@ const verify = require('../src/commands/verify');
 const logout = require('../src/commands/logout');
 const logoutAll = require('../src/commands/logoutAll');
 const sessions = require('../src/commands/sessions');
+const keys = require('../src/commands/keys');
 const git = require('../src/commands/git');
 const init = require('../src/commands/init');
 const create = require('../src/commands/create');
@@ -56,7 +57,8 @@ program
   .command('login')
   .description('Login with existing account')
   .option('-e, --email <email>', 'Email address')
-  .option('-k, --api-key <key>', 'API key')
+  .option('-k, --api-key <key>', 'API key (for fast login)')
+  .option('--otp <code>', 'One-time password from email')
   .action(login);
 
 program
@@ -79,6 +81,22 @@ program
   .command('sessions')
   .description('List all active sessions')
   .action(sessions);
+
+// API Key management
+const keysCommand = program
+  .command('keys')
+  .description('Manage API keys');
+
+keysCommand
+  .command('regenerate')
+  .description('Generate a new API key (invalidates old one)')
+  .action(keys.regenerate);
+
+keysCommand
+  .command('show')
+  .alias('info')
+  .description('Show API key information')
+  .action(keys.show);
 
 // Git OAuth commands
 const gitCommand = program
