@@ -105,7 +105,7 @@ async function list() {
  * Set environment variables
  * @param {string[]} vars - Array of KEY=VALUE pairs
  */
-async function set(...vars) {
+async function set(vars) {
   try {
     // Check authentication
     if (!isAuthenticated()) {
