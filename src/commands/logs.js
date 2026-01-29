@@ -188,11 +188,20 @@ async function getRuntimeLogs(applicationUuid, applicationName, options) {
     logger.newline();
 
     // Display logs
-    if (result.logs && result.logs.length > 0) {
-      result.logs.forEach(log => {
-        console.log(log);
-      });
+    if (result.logs) {
+      if (Array.isArray(result.logs)) {
+        // Logs is an array
+        result.logs.forEach(log => {
+          console.log(log);
+        });
+      } else if (typeof result.logs === 'string') {
+        // Logs is a string (most common format from backend)
+        console.log(result.logs);
+      } else {
+        logger.warn('Unexpected log format');
+      }
     } else if (typeof result === 'string') {
+      // Entire result is a string
       console.log(result);
     } else {
       logger.warn('No logs available');
