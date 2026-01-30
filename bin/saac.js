@@ -123,6 +123,17 @@ gitCommand
   .description('Disconnect a Git account')
   .action(git.disconnect);
 
+gitCommand
+  .command('repos <git_host>')
+  .description('List repositories from a connected Git host')
+  .option('-p, --page <number>', 'Page number', '1')
+  .option('-n, --per-page <number>', 'Results per page (max: 100)', '20')
+  .option('-s, --sort <type>', 'Sort order: updated, created, name', 'updated')
+  .option('-v, --visibility <type>', 'Filter: all, public, private', 'all')
+  .option('-c, --commits', 'Include latest commit info')
+  .option('--json', 'Output as JSON')
+  .action(git.repos);
+
 // Application management
 program
   .command('init')

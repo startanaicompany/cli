@@ -290,6 +290,35 @@ async function getExecutionHistory(uuid, params = {}) {
   return response.data;
 }
 
+/**
+ * List repositories from a connected Git host
+ * @param {string} gitHost - Git host domain (e.g., 'github.com', 'git.startanaicompany.com')
+ * @param {object} options - Query options
+ * @param {number} options.page - Page number for pagination (default: 1)
+ * @param {number} options.perPage - Results per page (default: 100, max: 100)
+ * @param {string} options.sort - Sort order: 'updated', 'created', 'name' (default: 'updated')
+ * @param {string} options.visibility - Filter: 'all', 'public', 'private' (default: 'all')
+ * @param {boolean} options.includeCommits - Include latest commit info (default: false)
+ * @returns {Promise<object>} - Repository listing response
+ */
+async function listGitRepositories(gitHost, options = {}) {
+  const client = createClient();
+
+  // Build query parameters
+  const params = {};
+  if (options.page) params.page = options.page;
+  if (options.perPage) params.per_page = options.perPage;
+  if (options.sort) params.sort = options.sort;
+  if (options.visibility) params.visibility = options.visibility;
+  if (options.includeCommits) params.include_commits = true;
+
+  // URL encode the git host
+  const encodedHost = encodeURIComponent(gitHost);
+
+  const response = await client.get(`/git/connections/${encodedHost}/repos`, { params });
+  return response.data;
+}
+
 module.exports = {
   createClient,
   login,
@@ -315,4 +344,5 @@ module.exports = {
   getDeploymentLogs,
   executeCommand,
   getExecutionHistory,
+  listGitRepositories,
 };
