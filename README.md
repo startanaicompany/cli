@@ -374,6 +374,141 @@ saac git disconnect git.startanaicompany.com
 - Existing applications continue to work
 - New applications will require reconnection
 
+### `saac git repos <host>`
+
+List repositories from a connected Git host.
+
+```bash
+# Basic usage
+saac git repos git.startanaicompany.com
+saac git repos github.com
+
+# Include latest commit information
+saac git repos github.com --commits
+
+# Filter by visibility
+saac git repos github.com --visibility private
+saac git repos github.com --visibility public
+
+# With pagination
+saac git repos github.com --page 2 --per-page 10
+
+# Sort repositories
+saac git repos github.com --sort created
+saac git repos github.com --sort name
+
+# JSON output for scripting
+saac git repos github.com --json
+
+# Combine options
+saac git repos github.com --commits --visibility private --per-page 20
+```
+
+**Options:**
+- `-p, --page <number>` - Page number for pagination (default: 1)
+- `-n, --per-page <number>` - Results per page, max 100 (default: 20)
+- `-s, --sort <type>` - Sort order: `updated`, `created`, `name` (default: `updated`)
+- `-v, --visibility <type>` - Filter: `all`, `public`, `private` (default: `all`)
+- `-c, --commits` - Include latest commit info for each repository
+- `--json` - Output as JSON for scripting
+
+**Shows:**
+- Repository name
+- Visibility (public/private)
+- Last updated timestamp
+- Default branch
+- Primary language
+- Latest commit (with `--commits` flag)
+
+**Example output (without commits):**
+```
+Repositories on git.startanaicompany.com (ryan.gogo)
+────────────────────────────────────────────────────
+
+NAME                VISIBILITY   UPDATED                BRANCH  LANGUAGE
+mysimpleflowershop  private      1/27/2026, 12:52:18 AM master  JavaScript
+api-server          private      1/26/2026, 8:30:00 PM  main    TypeScript
+landing-page        public       1/25/2026, 3:15:00 PM  master  HTML
+
+Showing 3 repositories (page 1)
+```
+
+**Example output (with `--commits`):**
+```
+Repositories on git.startanaicompany.com (ryan.gogo)
+────────────────────────────────────────────────────
+
+NAME                VISIBILITY   LAST COMMIT
+mysimpleflowershop  private      4b2c63f Initial commit - Simple Flower (3d ago)
+api-server          private      a90373d Add user authentication (1d ago)
+landing-page        public       f1e2d3c Update homepage design (5h ago)
+
+Showing 3 repositories (page 1)
+```
+
+**JSON output:**
+```bash
+$ saac git repos github.com --json
+
+{
+  "success": true,
+  "git_host": "github.com",
+  "username": "johndoe",
+  "provider_type": "github",
+  "repositories": [
+    {
+      "name": "my-app",
+      "fullName": "johndoe/my-app",
+      "description": "A cool application",
+      "private": false,
+      "sshUrl": "git@github.com:johndoe/my-app.git",
+      "cloneUrl": "https://github.com/johndoe/my-app.git",
+      "htmlUrl": "https://github.com/johndoe/my-app",
+      "defaultBranch": "main",
+      "updatedAt": "2026-01-30T12:00:00Z",
+      "language": "JavaScript",
+      "latestCommit": {
+        "sha": "abc1234",
+        "message": "Fix authentication bug",
+        "author": "John Doe",
+        "date": "2026-01-30T11:30:00Z"
+      }
+    }
+  ],
+  "count": 1,
+  "page": 1,
+  "per_page": 100
+}
+```
+
+**Use Cases:**
+- Browse available repositories before creating an application
+- Find repository SSH URLs for `saac create` command
+- Check latest commits without visiting Git provider
+- Script repository discovery and automation
+- Filter personal vs organization repositories
+
+**Performance Notes:**
+- Without `--commits`: Fast (single API call)
+- With `--commits`: Slower (fetches commit info for each repo in parallel)
+- Use `--commits` only when you need commit information
+
+**Example Workflow:**
+```bash
+# 1. Connect to Git host
+saac git connect github.com
+
+# 2. List your repositories
+saac git repos github.com
+
+# 3. Find the repository you want to deploy
+saac git repos github.com --visibility private
+
+# 4. Copy the SSH URL from the output
+# 5. Create application with that repository
+saac create my-app -s myapp -r git@github.com:username/my-app.git
+```
+
 ---
 
 ## Application Management
