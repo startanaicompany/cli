@@ -4,7 +4,7 @@
 
 const oauth = require('../lib/oauth');
 const api = require('../lib/api');
-const { isAuthenticated, getUser } = require('../lib/config');
+const { ensureAuthenticated, getUser } = require('../lib/config');
 const logger = require('../lib/logger');
 const { table } = require('table');
 const inquirer = require('inquirer');
@@ -15,11 +15,10 @@ const inquirer = require('inquirer');
 async function connect(host) {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 
@@ -116,11 +115,10 @@ async function connect(host) {
 async function list() {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 
@@ -193,11 +191,10 @@ async function list() {
 async function disconnect(host) {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 
@@ -254,11 +251,10 @@ async function disconnect(host) {
 async function repos(gitHost, options) {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

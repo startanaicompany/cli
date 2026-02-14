@@ -3,7 +3,7 @@
  */
 
 const api = require('../lib/api');
-const { isAuthenticated } = require('../lib/config');
+const { ensureAuthenticated } = require('../lib/config');
 const logger = require('../lib/logger');
 
 /**
@@ -12,11 +12,10 @@ const logger = require('../lib/logger');
 async function whoami() {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

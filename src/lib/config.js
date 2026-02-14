@@ -107,6 +107,52 @@ function isTokenExpiringSoon() {
 }
 
 /**
+ * Ensure user is authenticated, with auto-login support via environment variables
+ * Checks for SAAC_USER_API_KEY and SAAC_USER_EMAIL environment variables
+ * If present and user is not authenticated, attempts automatic login
+ *
+ * @returns {Promise<boolean>} - True if authenticated, false otherwise
+ */
+async function ensureAuthenticated() {
+  // Step 1: Check if already authenticated (fast path)
+  if (isAuthenticated()) {
+    return true;
+  }
+
+  // Step 2: Check for environment variables
+  const apiKey = process.env.SAAC_USER_API_KEY;
+  const email = process.env.SAAC_USER_EMAIL;
+
+  if (!apiKey || !email) {
+    // No environment variables - cannot auto-login
+    return false;
+  }
+
+  // Step 3: Attempt auto-login via API
+  try {
+    // Dynamically require to avoid circular dependency
+    const api = require('./api');
+    const result = await api.login(email, apiKey);
+
+    // Step 4: Save session token to config
+    saveUser({
+      email: result.user.email,
+      userId: result.user.id,
+      sessionToken: result.session_token,
+      expiresAt: result.expires_at,
+      verified: result.user.verified,
+    });
+
+    // Auto-login successful
+    return true;
+
+  } catch (error) {
+    // Auto-login failed (invalid key, network error, etc.)
+    return false;
+  }
+}
+
+/**
  * Get user info
  */
 function getUser() {
@@ -146,6 +192,7 @@ module.exports = {
   getProjectConfig,
   saveProjectConfig,
   isAuthenticated,
+  ensureAuthenticated,
   isTokenExpired,
   isTokenExpiringSoon,
   getUser,

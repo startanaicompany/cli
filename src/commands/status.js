@@ -3,7 +3,7 @@
  */
 
 const api = require('../lib/api');
-const { getUser, isAuthenticated, isTokenExpiringSoon } = require('../lib/config');
+const { getUser, ensureAuthenticated, isTokenExpiringSoon } = require('../lib/config');
 const logger = require('../lib/logger');
 const { table } = require('table');
 
@@ -13,11 +13,10 @@ async function status() {
     logger.newline();
 
     // Check if logged in locally (silently)
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

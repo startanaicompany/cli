@@ -272,6 +272,259 @@ saac whoami
 
 ---
 
+## Environment Variables for CI/CD
+
+The SAAC CLI supports **automatic authentication** via environment variables, perfect for CI/CD pipelines, Docker containers, and automation scripts.
+
+### How It Works
+
+When you run any SAAC command:
+1. CLI checks if you're already logged in (session token exists)
+2. If not logged in, checks for `SAAC_USER_API_KEY` and `SAAC_USER_EMAIL` environment variables
+3. If both are present, **automatically logs in** via API
+4. Session token is cached for subsequent commands (same performance as manual login)
+
+### Required Environment Variables
+
+- `SAAC_USER_API_KEY` - Your API key (format: `cw_...`)
+- `SAAC_USER_EMAIL` - Your email address
+
+**Both variables must be set** for auto-login to work.
+
+### Usage Examples
+
+#### GitHub Actions
+
+```yaml
+name: Deploy to SAAC
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install SAAC CLI
+        run: npm install -g @startanaicompany/cli
+
+      - name: Deploy Application
+        env:
+          SAAC_USER_API_KEY: ${{ secrets.SAAC_API_KEY }}
+          SAAC_USER_EMAIL: ${{ secrets.SAAC_EMAIL }}
+        run: |
+          saac deploy
+          saac logs --deployment
+```
+
+**Setup:**
+1. Go to your repo → Settings → Secrets → Actions
+2. Add `SAAC_API_KEY` with your API key
+3. Add `SAAC_EMAIL` with your email address
+
+#### GitLab CI/CD
+
+```yaml
+deploy:
+  stage: deploy
+  image: node:18
+  variables:
+    SAAC_USER_API_KEY: $CI_SAAC_API_KEY
+    SAAC_USER_EMAIL: $CI_SAAC_EMAIL
+  script:
+    - npm install -g @startanaicompany/cli
+    - saac deploy
+    - saac logs --deployment
+  only:
+    - main
+```
+
+**Setup:**
+1. Go to your project → Settings → CI/CD → Variables
+2. Add `CI_SAAC_API_KEY` (protected, masked)
+3. Add `CI_SAAC_EMAIL`
+
+#### Docker
+
+```dockerfile
+FROM node:18
+
+# Install SAAC CLI
+RUN npm install -g @startanaicompany/cli
+
+# Set environment variables (use build args for security)
+ARG SAAC_API_KEY
+ARG SAAC_EMAIL
+ENV SAAC_USER_API_KEY=$SAAC_API_KEY
+ENV SAAC_USER_EMAIL=$SAAC_EMAIL
+
+# Your application code
+WORKDIR /app
+COPY . .
+
+# Deploy on container startup
+CMD ["sh", "-c", "saac deploy && npm start"]
+```
+
+**Build with secrets:**
+```bash
+docker build \
+  --build-arg SAAC_API_KEY=cw_your_key \
+  --build-arg SAAC_EMAIL=your@email.com \
+  -t my-app .
+```
+
+#### Local Shell Script
+
+```bash
+#!/bin/bash
+set -e
+
+# Set environment variables
+export SAAC_USER_API_KEY=cw_your_api_key_here
+export SAAC_USER_EMAIL=your@email.com
+
+# Run SAAC commands
+saac deploy
+saac logs --deployment
+saac status
+
+echo "Deployment complete!"
+```
+
+#### With .env File (Local Development)
+
+Create `.env` file (**add to `.gitignore`!**):
+```bash
+SAAC_USER_API_KEY=cw_your_api_key_here
+SAAC_USER_EMAIL=your@email.com
+```
+
+Use with a script:
+```bash
+#!/bin/bash
+# Load .env file
+set -a
+source .env
+set +a
+
+# Run SAAC commands
+saac list
+saac status
+```
+
+### Security Best Practices
+
+✅ **DO:**
+- Store API keys in secrets management (GitHub Secrets, GitLab Variables, AWS Secrets Manager, etc.)
+- Use environment variables for automation
+- Add `.env` files to `.gitignore`
+- Rotate API keys periodically with `saac keys regenerate`
+- Use different API keys for different environments (dev, staging, prod)
+- Set secrets as "protected" and "masked" in CI/CD systems
+
+❌ **DON'T:**
+- Commit API keys to version control
+- Share API keys in plain text (Slack, email, etc.)
+- Hardcode API keys in scripts or Dockerfiles
+- Use the same API key across multiple teams/projects
+- Log API keys in CI/CD output
+
+### How It Differs from Manual Login
+
+| Feature | Manual Login | Auto-Login (Env Vars) |
+|---------|--------------|----------------------|
+| Session token created | ✅ Yes | ✅ Yes |
+| Session cached locally | ✅ Yes | ✅ Yes |
+| Session expires | ✅ 1 year | ✅ 1 year |
+| Requires user interaction | ❌ No (after first login) | ✅ Fully automated |
+| Perfect for CI/CD | ⚠️ Requires manual setup | ✅ Native support |
+| Performance | ⚡ Fast (cached) | ⚡ Fast (cached after first auto-login) |
+
+### Troubleshooting
+
+**"Not logged in" despite setting environment variables:**
+- Verify both `SAAC_USER_API_KEY` and `SAAC_USER_EMAIL` are set:
+  ```bash
+  echo $SAAC_USER_API_KEY
+  echo $SAAC_USER_EMAIL
+  ```
+- Ensure API key is valid (not revoked or expired)
+- Check API key format starts with `cw_`
+- Try logging in manually to verify credentials work:
+  ```bash
+  saac login -e $SAAC_USER_EMAIL -k $SAAC_USER_API_KEY
+  ```
+
+**Environment variables not being read:**
+- Make sure variables are exported: `export SAAC_USER_API_KEY=...`
+- Check for typos in variable names (must be exact)
+- In Docker, ensure ENV is set or use build args correctly
+- In CI/CD, verify secrets are configured correctly
+
+**Security concerns:**
+- Never print environment variables in logs: `echo $SAAC_USER_API_KEY` ❌
+- Use masked/protected secrets in CI/CD systems
+- Regenerate API key if accidentally exposed: `saac keys regenerate`
+- Monitor active sessions: `saac sessions`
+
+### Example: Complete CI/CD Workflow
+
+```yaml
+name: Full Deployment Workflow
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Install SAAC CLI
+        run: npm install -g @startanaicompany/cli
+
+      - name: Deploy to SAAC
+        env:
+          SAAC_USER_API_KEY: ${{ secrets.SAAC_API_KEY }}
+          SAAC_USER_EMAIL: ${{ secrets.SAAC_EMAIL }}
+        run: |
+          # Auto-login happens automatically!
+          saac deploy
+
+          # Wait for deployment to complete (built-in timeout)
+          echo "Deployment finished!"
+
+      - name: Check Application Status
+        env:
+          SAAC_USER_API_KEY: ${{ secrets.SAAC_API_KEY }}
+          SAAC_USER_EMAIL: ${{ secrets.SAAC_EMAIL }}
+        run: |
+          saac status
+          saac logs --deployment | tail -20
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Check logs with: saac logs --deployment"
+```
+
+---
+
 ## Git OAuth
 
 SAAC CLI uses **OAuth-only authentication** for Git access. You must connect your Git account before creating applications.

@@ -3,17 +3,16 @@
  */
 
 const api = require('../lib/api');
-const { isAuthenticated, getProjectConfig } = require('../lib/config');
+const { ensureAuthenticated, getProjectConfig } = require('../lib/config');
 const logger = require('../lib/logger');
 
 async function update(options) {
   try {
-    // Check authentication
-    if (!isAuthenticated()) {
+    // Check authentication (with auto-login support)
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

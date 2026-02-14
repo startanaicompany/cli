@@ -3,7 +3,7 @@
  */
 
 const api = require('../lib/api');
-const { getProjectConfig, isAuthenticated, saveProjectConfig } = require('../lib/config');
+const { getProjectConfig, ensureAuthenticated, saveProjectConfig } = require('../lib/config');
 const logger = require('../lib/logger');
 
 /**
@@ -14,8 +14,10 @@ const logger = require('../lib/logger');
 async function set(subdomain, options) {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
-      logger.error('Not logged in. Run: saac login');
+    if (!(await ensureAuthenticated())) {
+      logger.error('Not logged in');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 
@@ -149,8 +151,10 @@ async function set(subdomain, options) {
 async function show() {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
-      logger.error('Not logged in. Run: saac login');
+    if (!(await ensureAuthenticated())) {
+      logger.error('Not logged in');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

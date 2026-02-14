@@ -3,7 +3,7 @@
  */
 
 const api = require('../lib/api');
-const { getUser, isAuthenticated } = require('../lib/config');
+const { getUser, ensureAuthenticated } = require('../lib/config');
 const logger = require('../lib/logger');
 const inquirer = require('inquirer');
 
@@ -13,7 +13,7 @@ const inquirer = require('inquirer');
 async function regenerate() {
   try {
     // Must be authenticated (via session token)
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
       logger.newline();
       logger.info('You must be logged in to regenerate your API key');
@@ -21,6 +21,10 @@ async function regenerate() {
       logger.info('Login using email verification:');
       logger.log('  saac login -e <email>           # Request OTP');
       logger.log('  saac login -e <email> --otp <code>  # Verify OTP');
+      logger.newline();
+      logger.info('Or set environment variables:');
+      logger.log('  export SAAC_USER_API_KEY=your_api_key');
+      logger.log('  export SAAC_USER_EMAIL=your_email');
       process.exit(1);
     }
 
@@ -88,7 +92,7 @@ async function regenerate() {
  */
 async function show() {
   try {
-    if (!isAuthenticated()) {
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
       logger.newline();
       logger.info('Login first:');

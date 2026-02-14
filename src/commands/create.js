@@ -3,7 +3,7 @@
  */
 
 const api = require('../lib/api');
-const { isAuthenticated, saveProjectConfig, getUser, getProjectConfig } = require('../lib/config');
+const { ensureAuthenticated, saveProjectConfig, getUser, getProjectConfig } = require('../lib/config');
 const logger = require('../lib/logger');
 const oauth = require('../lib/oauth');
 const inquirer = require('inquirer');
@@ -12,12 +12,11 @@ const errorDisplay = require('../lib/errorDisplay');
 
 async function create(name, options) {
   try {
-    // Check authentication
-    if (!isAuthenticated()) {
+    // Check authentication (with auto-login support)
+    if (!(await ensureAuthenticated())) {
       logger.error('Not logged in');
-      logger.newline();
-      logger.info('Run:');
-      logger.log('  saac login -e <email> -k <api-key>');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

@@ -146,22 +146,39 @@ Uses Commander.js to define:
 5. All subsequent API requests include X-Session-Token header
 6. Token expires after 1 year → user must login again
 
-**API Key Flow (CI/CD & Scripts):**
-1. User logs in with email + API key → API returns session token
-2. Environment variable `SAAC_API_KEY` can override stored credentials
-3. Useful for automation, scripts, and CI/CD pipelines
+**Auto-Login Flow (CI/CD & Automation):**
+1. User sets `SAAC_USER_API_KEY` and `SAAC_USER_EMAIL` environment variables
+2. Any command checks `ensureAuthenticated()` instead of `isAuthenticated()`
+3. If not logged in, `ensureAuthenticated()` checks for env vars
+4. If both present, automatically calls login API
+5. Session token saved to config, cached for subsequent commands
+6. Subsequent commands use cached session (fast path, no API call)
 
 **Authentication Priority:**
 ```javascript
-// In api.js createClient()
+// In commands (e.g., deploy.js, list.js, etc.)
+if (!(await ensureAuthenticated())) {
+  // Not logged in and auto-login failed
+  logger.error('Not logged in');
+  logger.info('Run: saac login -e <email> -k <api-key>');
+  logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
+  process.exit(1);
+}
+
+// In api.js createClient() - Header priority:
 if (process.env.SAAC_API_KEY) {
-  headers['X-API-Key'] = SAAC_API_KEY;  // 1st priority
+  headers['X-API-Key'] = SAAC_API_KEY;  // 1st priority (legacy)
 } else if (user.sessionToken) {
   headers['X-Session-Token'] = sessionToken;  // 2nd priority
 } else if (user.apiKey) {
   headers['X-API-Key'] = apiKey;  // 3rd priority (backward compat)
 }
 ```
+
+**Environment Variables:**
+- `SAAC_USER_API_KEY` - API key for auto-login (NEW)
+- `SAAC_USER_EMAIL` - Email for auto-login (NEW)
+- `SAAC_API_KEY` - Legacy API key (used directly in API headers, bypasses login)
 
 ### Application Lifecycle
 
@@ -205,9 +222,52 @@ The CLI now uses session tokens instead of storing permanent API keys:
 ```
 
 **Token Validation Functions** (in `config.js`):
-- `isAuthenticated()` - Checks if user has valid, non-expired token
+- `isAuthenticated()` - Checks if user has valid, non-expired token (synchronous)
+- `ensureAuthenticated()` - **NEW**: Checks authentication + auto-login via env vars (async)
 - `isTokenExpired()` - Checks if session token has expired
 - `isTokenExpiringSoon()` - Checks if token expires within 7 days
+
+**ensureAuthenticated() Function:**
+```javascript
+async function ensureAuthenticated() {
+  // Step 1: Check if already authenticated (fast path)
+  if (isAuthenticated()) {
+    return true;
+  }
+
+  // Step 2: Check for environment variables
+  const apiKey = process.env.SAAC_USER_API_KEY;
+  const email = process.env.SAAC_USER_EMAIL;
+
+  if (!apiKey || !email) {
+    return false; // No env vars - cannot auto-login
+  }
+
+  // Step 3: Attempt auto-login via API
+  try {
+    const api = require('./api');
+    const result = await api.login(email, apiKey);
+
+    // Step 4: Save session token to config
+    saveUser({
+      email: result.user.email,
+      userId: result.user.id,
+      sessionToken: result.session_token,
+      expiresAt: result.expires_at,
+      verified: result.user.verified,
+    });
+
+    return true; // Auto-login successful
+  } catch (error) {
+    return false; // Auto-login failed
+  }
+}
+```
+
+**When to use:**
+- Use `ensureAuthenticated()` in ALL non-auth commands (deploy, list, create, etc.)
+- Use `isAuthenticated()` only when you don't want auto-login behavior
+- Commands that should NOT use `ensureAuthenticated()`: login, logout, register, verify
 
 **Backend Requirements:**
 - `POST /auth/login` - Accepts `X-API-Key` + email, returns session token

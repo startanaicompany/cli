@@ -7,7 +7,7 @@
 
 const WebSocket = require('ws');
 const readline = require('readline');
-const { getProjectConfig, isAuthenticated, getUser, getApiUrl } = require('../lib/config');
+const { getProjectConfig, ensureAuthenticated, getUser, getApiUrl } = require('../lib/config');
 const logger = require('../lib/logger');
 
 /**
@@ -320,8 +320,10 @@ class ShellClient {
 async function shell(options = {}) {
   try {
     // Check authentication
-    if (!isAuthenticated()) {
-      logger.error('Not logged in. Run: saac login');
+    if (!(await ensureAuthenticated())) {
+      logger.error('Not logged in');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 

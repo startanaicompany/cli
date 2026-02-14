@@ -3,15 +3,17 @@
  */
 
 const api = require('../lib/api');
-const { getProjectConfig, isAuthenticated } = require('../lib/config');
+const { getProjectConfig, ensureAuthenticated } = require('../lib/config');
 const logger = require('../lib/logger');
 const errorDisplay = require('../lib/errorDisplay');
 
 async function deploy(options) {
   try {
-    // Check authentication
-    if (!isAuthenticated()) {
-      logger.error('Not logged in. Run: saac login');
+    // Check authentication (with auto-login support)
+    if (!(await ensureAuthenticated())) {
+      logger.error('Not logged in');
+      logger.info('Run: saac login -e <email> -k <api-key>');
+      logger.info('Or set: SAAC_USER_API_KEY and SAAC_USER_EMAIL');
       process.exit(1);
     }
 
