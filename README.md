@@ -527,31 +527,78 @@ saac init
 - Have an existing project
 - Want to manage an application from a different directory
 
-**What it does:**
-1. Fetches all your SAAC applications
-2. Shows interactive list to select from
-3. Saves selected application info to `.saac/config.json`
-4. Now you can use `saac deploy`, `saac logs`, etc.
+**Smart Auto-Detection (NEW!):**
 
-**Example:**
+If you're in a Git repository, `saac init` automatically detects the remote URL and matches it to your applications:
+
+```bash
+$ cd mysimpleflowershop
+$ saac init
+
+Initialize SAAC Project
+───────────────────────
+
+✓ Found 3 application(s)
+
+ℹ Auto-detected Git repository: git@git.startanaicompany.com:ryan.gogo/mysimpleflowershop.git
+
+  Matched Application: mysimpleflowershop
+  Domain: mysimpleflowershop.startanaicompany.com
+  Status: running:healthy
+
+? Link this application to the current directory? (Y/n) Yes
+
+✓ Project initialized!
+
+  Application: mysimpleflowershop
+  UUID: abc123-def456...
+  Domain: mysimpleflowershop.startanaicompany.com
+  Status: running:healthy
+
+You can now use:
+  saac deploy              Deploy your application
+  saac logs --follow       View deployment logs
+  saac status              Check application status
+  saac update --port 8080  Update configuration
+```
+
+**How Auto-Detection Works:**
+1. Reads Git remote URL from `.git/config`
+2. Normalizes both Git remote and application repositories
+3. Matches against your applications automatically
+4. Asks for confirmation (defaults to Yes)
+5. Falls back to manual selection if no match found or if you decline
+
+**Supports:**
+- SSH URLs: `git@github.com:user/repo.git`
+- HTTPS URLs: `https://github.com/user/repo.git`
+- With or without `.git` suffix
+- Case-insensitive matching
+
+**Manual Selection (fallback):**
+
+If not in a Git repository or no match found, shows interactive list:
+
 ```bash
 $ saac init
 
-Select Application
-──────────────────
+? Select application to link to this directory:
+  ❯ mysimpleflowershop - mysimpleflowershop.startanaicompany.com (running:healthy)
+    api-server - api.startanaicompany.com (running:healthy)
+    landing-page - landing.startanaicompany.com (stopped)
+```
 
-? Which application do you want to link to this directory?
-  ❯ mysimpleflowershop (mysimpleflowershop.startanaicompany.com)
-    api-server (api.startanaicompany.com)
-    landing-page (landing.startanaicompany.com)
+**What it saves:**
 
-✓ Application linked successfully!
-
-ℹ Configuration saved to .saac/config.json
-ℹ You can now use:
-  saac deploy    - Deploy application
-  saac logs      - View logs
-  saac status    - Check status
+Creates `.saac/config.json` in current directory:
+```json
+{
+  "applicationUuid": "abc123-def456...",
+  "applicationName": "mysimpleflowershop",
+  "subdomain": "mysimpleflowershop",
+  "domainSuffix": "startanaicompany.com",
+  "gitRepository": "git@git.startanaicompany.com:ryan.gogo/mysimpleflowershop.git"
+}
 ```
 
 ### `saac create <name>`

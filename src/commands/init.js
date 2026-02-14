@@ -10,6 +10,9 @@ const api = require('../lib/api');
 const { isAuthenticated, saveProjectConfig, getProjectConfig } = require('../lib/config');
 const logger = require('../lib/logger');
 const inquirer = require('inquirer');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 async function init(options) {
   try {
@@ -87,9 +90,56 @@ async function createAndInitialize(options) {
 }
 
 /**
+ * Get Git remote URL from current directory
+ * @returns {string|null} - Git remote URL or null if not a git repo
+ */
+function getGitRemoteUrl() {
+  try {
+    // Check if .git directory exists
+    if (!fs.existsSync(path.join(process.cwd(), '.git'))) {
+      return null;
+    }
+
+    // Get remote.origin.url
+    const remoteUrl = execSync('git config --get remote.origin.url', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'] // Suppress stderr
+    }).trim();
+
+    return remoteUrl || null;
+  } catch (error) {
+    // Not a git repo or no remote configured
+    return null;
+  }
+}
+
+/**
+ * Normalize Git URLs for comparison
+ * Converts both SSH and HTTPS URLs to a comparable format
+ */
+function normalizeGitUrl(url) {
+  if (!url) return '';
+
+  // Remove .git suffix
+  let normalized = url.replace(/\.git$/, '');
+
+  // Convert SSH to HTTPS-like format for comparison
+  // git@github.com:user/repo -> github.com/user/repo
+  normalized = normalized.replace(/^git@([^:]+):/, '$1/');
+
+  // Remove https:// or http://
+  normalized = normalized.replace(/^https?:\/\//, '');
+
+  return normalized.toLowerCase();
+}
+
+/**
  * Link an existing application to current directory (interactive)
  */
 async function linkExistingApplication() {
+
+  // Try to auto-detect Git repository
+  const gitRemoteUrl = getGitRemoteUrl();
 
   // Fetch user's applications
   const spin = logger.spinner('Fetching your applications...').start();
@@ -111,20 +161,67 @@ async function linkExistingApplication() {
 
     logger.newline();
 
-    // Interactive: Let user select application
-    const choices = applications.map(app => ({
-      name: `${app.name} - ${app.domain || `${app.subdomain}.startanaicompany.com`} (${app.status})`,
-      value: app,
-    }));
+    let selectedApp = null;
 
-    const { selectedApp } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'selectedApp',
-        message: 'Select application to link to this directory:',
-        choices: choices,
-      },
-    ]);
+    // Try to auto-match based on Git remote URL
+    if (gitRemoteUrl) {
+      const normalizedRemote = normalizeGitUrl(gitRemoteUrl);
+
+      const matchedApp = applications.find(app => {
+        if (!app.git_repository) return false;
+        const normalizedAppRepo = normalizeGitUrl(app.git_repository);
+        return normalizedAppRepo === normalizedRemote;
+      });
+
+      if (matchedApp) {
+        // Found matching application!
+        logger.info(`Auto-detected Git repository: ${gitRemoteUrl}`);
+        logger.newline();
+        logger.field('Matched Application', matchedApp.name);
+        logger.field('Domain', matchedApp.domain || `${matchedApp.subdomain}.startanaicompany.com`);
+        logger.field('Status', matchedApp.status);
+        logger.newline();
+
+        const { confirm } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirm',
+            message: 'Link this application to the current directory?',
+            default: true,
+          },
+        ]);
+
+        if (confirm) {
+          selectedApp = matchedApp;
+        } else {
+          logger.newline();
+          logger.info('Please select a different application:');
+          logger.newline();
+        }
+      } else {
+        logger.warn(`No application found matching Git remote: ${gitRemoteUrl}`);
+        logger.newline();
+      }
+    }
+
+    // If no auto-match or user declined, show interactive selection
+    if (!selectedApp) {
+      const choices = applications.map(app => ({
+        name: `${app.name} - ${app.domain || `${app.subdomain}.startanaicompany.com`} (${app.status})`,
+        value: app,
+      }));
+
+      const answer = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'selectedApp',
+          message: 'Select application to link to this directory:',
+          choices: choices,
+        },
+      ]);
+
+      selectedApp = answer.selectedApp;
+    }
 
     logger.newline();
 
