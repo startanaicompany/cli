@@ -120,10 +120,10 @@ async function getApplication(uuid) {
  * Deploy application
  * Note: This waits for deployment to complete (up to 5 minutes)
  */
-async function deployApplication(uuid) {
+async function deployApplication(uuid, options = {}) {
   // Use 5-minute timeout for deployment waiting
   const client = createClient(300000); // 5 minutes
-  const response = await client.post(`/applications/${uuid}/deploy`);
+  const response = await client.post(`/applications/${uuid}/deploy`, options);
   return response.data;
 }
 

@@ -206,7 +206,8 @@ program
 program
   .command('deploy')
   .description('Deploy current application')
-  .option('-f, --force', 'Force deployment')
+  .option('-s, --stream', 'Stream build logs in real-time')
+  .option('--no-cache', 'Rebuild without Docker cache (slower but fresh build)')
   .action(deploy);
 
 program
