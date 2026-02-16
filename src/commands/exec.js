@@ -111,27 +111,35 @@ async function exec(command, options = {}) {
 
       spin.succeed('Command executed');
     } catch (error) {
-      spin.fail('Command execution failed');
+      spin.fail('Command not allowed');
 
       if (error.response?.status === 400) {
-        const data = error.response.data;
+        const data = error.response.data || {};
         logger.newline();
 
-        if (data.error === 'VALIDATION_ERROR') {
-          logger.error('Command validation failed');
-          logger.newline();
-          logger.warn(data.message);
+        // Show clear "command not allowed" message for all 400 errors
+        logger.error('This command is blocked for security reasons');
 
-          if (data.message.includes('not in allowlist')) {
-            logger.newline();
-            logger.info('Allowed commands include:');
-            logger.log('  Node.js: npm, node, npx, yarn, pnpm');
-            logger.log('  Python: python, python3, pip, poetry');
-            logger.log('  Ruby: bundle, rake, rails');
-            logger.log('  Shell: sh, bash, echo, cat, ls, pwd');
-            logger.log('  Database: psql, mysql, mongosh');
-          }
+        // Show backend message if available
+        if (data.message) {
+          logger.newline();
+          logger.warn(`Reason: ${data.message}`);
         }
+
+        logger.newline();
+        logger.info('Allowed commands include:');
+        logger.log('  Node.js: npm, node, npx, yarn, pnpm');
+        logger.log('  Python: python, python3, pip, poetry');
+        logger.log('  Ruby: bundle, rake, rails');
+        logger.log('  Shell: sh, bash, echo, cat, ls, pwd, df');
+        logger.log('  Database: psql, mysql, mongosh');
+        logger.newline();
+        logger.info('Blocked for security:');
+        logger.log('  System commands: whoami, ps, top, kill');
+        logger.log('  Destructive operations: rm, chmod, chown');
+        logger.log('  Advanced shell features: pipes (|), redirects (>), command substitution');
+
+        process.exit(1);
       } else if (error.response?.status === 408) {
         logger.newline();
         logger.error('Command execution timed out');
