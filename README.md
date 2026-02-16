@@ -15,6 +15,7 @@
 - 🔄 **Auto-healing** - Automatically fixes common deployment issues
 - 🖥️ **Remote Shell** - Access your container via WebSocket (Project Aurora)
 - 🔧 **Remote Execution** - Run commands inside your container
+- 🗄️ **Database Management** - Direct access to PostgreSQL and Redis
 - 📊 **Real-time Logs** - View runtime and deployment logs
 
 ## Installation
@@ -47,7 +48,11 @@ saac deploy
 # 7. View logs
 saac logs
 
-# 8. Access your container shell
+# 8. Query your database
+saac db sql "SELECT NOW()"
+saac db redis PING
+
+# 9. Access your container shell
 saac shell
 ```
 
@@ -66,6 +71,11 @@ saac shell
   - [Remote Shell (saac shell)](#remote-shell)
   - [Remote Execution (saac exec)](#remote-execution)
   - [Local Development (saac run)](#local-development)
+- [Database Management](#database-management)
+  - [List Containers (saac db list)](#list-containers)
+  - [SQL Queries (saac db sql)](#sql-queries)
+  - [Redis Commands (saac db redis)](#redis-commands)
+  - [Connection Info (saac db info)](#connection-info)
 - [Logs & Monitoring](#logs--monitoring)
 - [Domain Management](#domain-management)
 - [Complete Workflows](#complete-workflows)
@@ -1599,6 +1609,231 @@ postgresql://user:pass@db.internal:5432/myapp
 
 ---
 
+## Database Management
+
+Manage and query your application's databases directly from the CLI.
+
+### List Containers
+
+#### `saac db list`
+
+List all database containers for your application.
+
+```bash
+saac db list
+saac db ls  # Alias
+```
+
+**Shows:**
+- Container name
+- Type (postgres, redis, app)
+- Status (running, healthy, stopped)
+- Docker image
+
+**Example output:**
+```
+Database Containers for my-app
+───────────────────────────────
+
+┌─────────────────────────────┬──────────┬────────────┬──────────────────┐
+│ Container Name              │ Type     │ Status     │ Image            │
+├─────────────────────────────┼──────────┼────────────┼──────────────────┤
+│ postgres-abc123-456def      │ postgres │ healthy    │ postgres:15      │
+│ redis-abc123-456def         │ redis    │ healthy    │ redis:7          │
+│ app-abc123-456def           │ app      │ running    │ node:18          │
+└─────────────────────────────┴──────────┴────────────┴──────────────────┘
+```
+
+### SQL Queries
+
+#### `saac db sql <query>`
+
+Execute SQL queries on your PostgreSQL database.
+
+```bash
+# Simple SELECT query
+saac db sql "SELECT NOW()"
+
+# Query your data
+saac db sql "SELECT * FROM users LIMIT 10"
+
+# Count records
+saac db sql "SELECT COUNT(*) FROM posts"
+
+# Specify database name (optional)
+saac db sql "SELECT version()" --db my_database
+
+# Write operations (CREATE, INSERT, UPDATE, DELETE)
+saac db sql "INSERT INTO users (name, email) VALUES ('John', 'john@example.com')" --write
+saac db sql "UPDATE users SET active = true WHERE id = 123" --write
+saac db sql "DELETE FROM sessions WHERE expires_at < NOW()" --write
+```
+
+**Options:**
+- `--db <name>` - Database name (default: from environment variables)
+- `--write` - Allow write operations (INSERT, UPDATE, DELETE, CREATE, DROP)
+
+**Security:**
+- Read-only by default (SELECT, SHOW, DESCRIBE, EXPLAIN)
+- Write operations require `--write` flag
+- Dangerous operations (DROP, TRUNCATE) require `--write` flag
+- Rate limit: 60 queries per 5 minutes
+
+**Example output:**
+```bash
+$ saac db sql "SELECT * FROM users LIMIT 3"
+
+Executing SQL Query on my-app
+──────────────────────────────
+
+┌────┬─────────────┬──────────────────┬────────────────────┐
+│ id │ name        │ email            │ created_at         │
+├────┼─────────────┼──────────────────┼────────────────────┤
+│ 1  │ Alice       │ alice@example.com│ 2026-02-15 10:00:00│
+│ 2  │ Bob         │ bob@example.com  │ 2026-02-15 11:30:00│
+│ 3  │ Charlie     │ charlie@test.com │ 2026-02-16 09:15:00│
+└────┴─────────────┴──────────────────┴────────────────────┘
+
+Rows returned: 3
+```
+
+### Redis Commands
+
+#### `saac db redis <command>`
+
+Execute Redis commands.
+
+```bash
+# Test connection
+saac db redis PING
+
+# Get a key
+saac db redis GET mykey
+
+# Set a key
+saac db redis SET mykey "hello world"
+
+# Hash operations
+saac db redis HSET user:123 name "John"
+saac db redis HGETALL user:123
+
+# List operations
+saac db redis LPUSH mylist "item1"
+saac db redis LRANGE mylist 0 -1
+
+# Check key existence
+saac db redis EXISTS mykey
+
+# Get key type
+saac db redis TYPE mykey
+```
+
+**Supported Commands:**
+- String: GET, SET, APPEND, INCR, DECR
+- Hash: HGET, HSET, HGETALL, HDEL
+- List: LPUSH, RPUSH, LRANGE, LLEN
+- Set: SADD, SMEMBERS, SISMEMBER
+- Sorted Set: ZADD, ZRANGE, ZSCORE
+- Key: EXISTS, DEL, TYPE, EXPIRE, TTL
+- Info: PING, INFO, DBSIZE
+
+**Blocked Commands** (for safety):
+- FLUSHDB, FLUSHALL (data loss)
+- CONFIG (security)
+- SHUTDOWN (availability)
+
+**Example output:**
+```bash
+$ saac db redis GET user:session:abc123
+
+Executing Redis Command on my-app
+──────────────────────────────────
+
+Command: GET user:session:abc123
+
+✓ Result:
+{"userId":"123","expires":"2026-02-20T10:00:00Z"}
+```
+
+### Connection Info
+
+#### `saac db info`
+
+Show database connection information.
+
+```bash
+saac db info
+```
+
+**Shows:**
+- PostgreSQL host, port, database name
+- Redis host, port
+- Internal network addresses
+
+**Example output:**
+```
+Database Connection Info for my-app
+────────────────────────────────────
+
+✓ PostgreSQL:
+    Host: postgres.internal
+    Port: 5432
+    Database: myapp_db
+
+✓ Redis:
+    Host: redis.internal
+    Port: 6379
+
+ℹ Note: These are internal network addresses
+      (only accessible within the application network)
+```
+
+### Database Management Workflows
+
+**Create table and insert data:**
+```bash
+# 1. Create table
+saac db sql "CREATE TABLE users (id SERIAL PRIMARY KEY, name VARCHAR(100), email VARCHAR(100))" --write
+
+# 2. Insert data
+saac db sql "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')" --write
+
+# 3. Query data
+saac db sql "SELECT * FROM users"
+```
+
+**Redis caching workflow:**
+```bash
+# 1. Set cache value
+saac db redis SET cache:users:123 "{\"name\":\"Alice\",\"email\":\"alice@example.com\"}"
+
+# 2. Get cache value
+saac db redis GET cache:users:123
+
+# 3. Set expiration
+saac db redis EXPIRE cache:users:123 3600
+
+# 4. Check TTL
+saac db redis TTL cache:users:123
+```
+
+**Check database health:**
+```bash
+# List all containers
+saac db list
+
+# Check PostgreSQL version
+saac db sql "SELECT version()"
+
+# Test Redis connection
+saac db redis PING
+
+# View connection details
+saac db info
+```
+
+---
+
 ## Logs & Monitoring
 
 View runtime logs and deployment logs for your application.
@@ -2496,7 +2731,33 @@ MIT © StartAnAiCompany
 
 ## Changelog
 
-### Version 1.4.20 (Latest)
+### Version 1.9.1 (Latest)
+- Fixed `saac exec` to use SSE command channel for faster, more reliable execution
+- Migrated from direct docker exec to daemon-based execution
+- Consistent with database commands (sql, redis, containers)
+- No more 30-second timeouts - average response time ~500ms
+
+### Version 1.9.0
+- **New: Database Management Commands**
+- Added `saac db list` - List all database containers (postgres, redis, app)
+- Added `saac db sql <query>` - Execute SQL queries with formatted table output
+- Added `saac db redis <command>` - Execute Redis commands (GET, SET, PING, etc.)
+- Added `saac db info` - Show database connection information
+- Read-only by default with `--write` flag for modifications
+- Rate limiting: 60 queries per 5 minutes
+- Uses SSE command channel with ~1s response time
+
+### Version 1.8.0
+- Made deploy streaming the default behavior
+- Changed `--stream` flag to `--no-stream` for fire-and-forget mode
+- Improved visibility for AI agents and users during deployments
+
+### Version 1.7.0
+- Added real-time deploy streaming with `--stream` flag
+- Added `--no-cache` flag for clean rebuilds
+- Improved deployment visibility
+
+### Version 1.4.20
 - Fixed logs command - handle logs as string instead of array
 - Backend returns `result.logs` as string, not array
 
