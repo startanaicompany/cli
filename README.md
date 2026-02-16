@@ -1472,17 +1472,19 @@ Run one-off commands inside your container without opening an interactive shell.
 Execute a single command in the remote container.
 
 ```bash
-# Run command
+# Run npm commands
 saac exec "npm run db:migrate"
+saac exec "npm test"
+saac exec "npm run build"
 
-# Check Node.js version
+# Check versions
 saac exec "node --version"
+saac exec "npm --version"
 
-# View environment variables
-saac exec "printenv | grep NODE"
-
-# Check running processes
-saac exec "ps aux"
+# File operations
+saac exec "ls -la"
+saac exec "cat package.json"
+saac exec "pwd"
 
 # Custom working directory
 saac exec "npm test" --workdir /app/src
@@ -1494,6 +1496,34 @@ saac exec "npm run build" --timeout 300
 **Options:**
 - `--workdir <path>` - Working directory (default: `/app`)
 - `--timeout <seconds>` - Timeout in seconds (default: 30, max: 300)
+
+**Security & Command Allowlist:**
+
+For security, only specific commands are allowed. Commands are executed via the SSE command channel with ~500ms response time.
+
+**Allowed Commands:**
+- **Node.js:** npm, node, npx, yarn, pnpm
+- **Python:** python, python3, pip, pip3, poetry
+- **Ruby:** bundle, rake, rails, ruby
+- **Shell:** sh, bash, echo, cat, ls, pwd, env
+- **Database:** psql, mysql, mongosh
+- **Build:** go, cargo, make, cmake
+
+**Blocked for Security:**
+- System commands: `whoami`, `ps`, `top`, `kill`
+- Destructive operations: `rm`, `chmod`, `chown`
+- Advanced shell features: pipes (`|`), redirects (`>`), command substitution
+
+**Rate Limit:** 60 commands per 5 minutes per user
+
+If you try a blocked command, you'll see a clear error message:
+```
+✖ Command not allowed
+
+✗ This command is blocked for security reasons
+
+⚠ Command 'whoami' is not in allowlist. Allowed commands: ...
+```
 
 **Example output:**
 ```bash
@@ -2451,7 +2481,8 @@ saac shell
 **Workaround:** Use `saac exec` for one-off commands:
 ```bash
 saac exec "npm run migrate"
-saac exec "ps aux"
+saac exec "node --version"
+saac exec "ls -la"
 ```
 
 ### General Debugging
