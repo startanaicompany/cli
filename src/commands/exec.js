@@ -120,19 +120,20 @@ async function exec(command, options = {}) {
         // Show clear "command not allowed" message for all 400 errors
         logger.error('This command is blocked for security reasons');
 
-        // Show backend message if available
-        if (data.message) {
+        // Show backend error message if available (note: field is 'error', not 'message')
+        if (data.error) {
           logger.newline();
-          logger.warn(`Reason: ${data.message}`);
+          logger.warn(data.error);
         }
 
         logger.newline();
         logger.info('Allowed commands include:');
         logger.log('  Node.js: npm, node, npx, yarn, pnpm');
         logger.log('  Python: python, python3, pip, poetry');
-        logger.log('  Ruby: bundle, rake, rails');
-        logger.log('  Shell: sh, bash, echo, cat, ls, pwd, df');
+        logger.log('  Ruby: bundle, rake, rails, ruby');
+        logger.log('  Shell: sh, bash, echo, cat, ls, pwd, env');
         logger.log('  Database: psql, mysql, mongosh');
+        logger.log('  Build: go, cargo, make, cmake');
         logger.newline();
         logger.info('Blocked for security:');
         logger.log('  System commands: whoami, ps, top, kill');
