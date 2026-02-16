@@ -113,7 +113,7 @@ async function deleteApp(options) {
 
       logger.newline();
 
-      logger.success(`Application '${result.application_name}' has been permanently deleted.`);
+      logger.success(`Application '${app.name}' has been permanently deleted.`);
 
       logger.newline();
 

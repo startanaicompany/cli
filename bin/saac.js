@@ -96,12 +96,6 @@ keysCommand
   .description('Generate a new API key (invalidates old one)')
   .action(keys.regenerate);
 
-keysCommand
-  .command('show')
-  .alias('info')
-  .description('Show API key information')
-  .action(keys.show);
-
 // Git OAuth commands
 const gitCommand = program
   .command('git')
@@ -150,6 +144,7 @@ program
   // Required options
   .option('-s, --subdomain <subdomain>', 'Subdomain')
   .option('-r, --repository <url>', 'Git repository URL (SSH format)')
+  .option('--org <organization_id>', 'Organization ID (required)')
   // Basic options
   .option('-b, --branch <branch>', 'Git branch', 'master')
   .option('-d, --domain-suffix <suffix>', 'Domain suffix', 'startanaicompany.com')
@@ -231,6 +226,7 @@ program
   .option('-t, --tail <lines>', 'Number of lines to show (runtime logs only)', '100')
   .option('-f, --follow', 'Follow log output (runtime logs only)')
   .option('--since <time>', 'Show logs since timestamp (runtime logs only)')
+  .option('--type <type>', 'Filter by log type: build, runtime, access (runtime logs only)')
   .action(logs);
 
 // Local development commands

@@ -89,6 +89,7 @@ async function create(name, options) {
       logger.info('Required options:');
       logger.log('  -s, --subdomain <subdomain>          Subdomain for your app');
       logger.log('  -r, --repository <url>               Git repository URL (SSH format)');
+      logger.log('  --org <organization_id>              Organization ID');
       logger.newline();
       logger.info('Optional options:');
       logger.log('  -b, --branch <branch>                Git branch (default: master)');
@@ -110,17 +111,17 @@ async function create(name, options) {
       logger.log('  --env <KEY=VALUE>                    Environment variable (can be used multiple times)');
       logger.newline();
       logger.info('Example:');
-      logger.log('  saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git');
-      logger.log('  saac create api -s api -r git@git... --build-pack nixpacks --port 8080');
-      logger.log('  saac create web -s web -r git@git... --health-check --pre-deploy-cmd "npm run migrate"');
+      logger.log('  saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git --org <org_id>');
+      logger.log('  saac create api -s api -r git@git... --org <org_id> --build-pack nixpacks --port 8080');
+      logger.log('  saac create web -s web -r git@git... --org <org_id> --health-check --pre-deploy-cmd "npm run migrate"');
       process.exit(1);
     }
 
-    if (!options.subdomain || !options.repository) {
-      logger.error('Missing required options: subdomain and repository are required');
+    if (!options.subdomain || !options.repository || !options.org) {
+      logger.error('Missing required options: subdomain, repository, and organization ID are required');
       logger.newline();
       logger.info('Example:');
-      logger.log(`  saac create ${name} -s myapp -r git@git.startanaicompany.com:user/repo.git`);
+      logger.log(`  saac create ${name} -s myapp -r git@git.startanaicompany.com:user/repo.git --org <org_id>`);
       logger.newline();
       logger.info('Note: Git OAuth connection required. Connect with: saac git connect');
       process.exit(1);
@@ -156,6 +157,7 @@ async function create(name, options) {
       domain_suffix: options.domainSuffix || 'startanaicompany.com',
       git_repository: options.repository,
       git_branch: options.branch || 'master',
+      organization_id: options.org,
     };
 
     // OAuth tokens are retrieved from database by wrapper

@@ -87,61 +87,6 @@ async function regenerate() {
   }
 }
 
-/**
- * Show API key info (without revealing full key)
- */
-async function show() {
-  try {
-    if (!(await ensureAuthenticated())) {
-      logger.error('Not logged in');
-      logger.newline();
-      logger.info('Login first:');
-      logger.log('  saac login -e <email>');
-      process.exit(1);
-    }
-
-    logger.section('API Key Information');
-    logger.newline();
-
-    const spin = logger.spinner('Fetching API key info...').start();
-
-    try {
-      const result = await api.getApiKeyInfo();
-
-      spin.succeed('API key info retrieved');
-
-      logger.newline();
-      logger.field('Key Prefix', result.key_prefix); // e.g., "cw_RJ1gH8..."
-      logger.field('Created', new Date(result.created_at).toLocaleDateString());
-      logger.field('Last Used', result.last_used_at
-        ? new Date(result.last_used_at).toLocaleString()
-        : 'Never');
-
-      logger.newline();
-      logger.info('Commands:');
-      logger.log('  saac keys regenerate    Generate new API key');
-      logger.log('  saac sessions           View active sessions');
-
-    } catch (error) {
-      spin.fail('Failed to fetch API key info');
-
-      // If endpoint doesn't exist yet, show helpful message
-      if (error.response?.status === 404) {
-        logger.newline();
-        logger.warn('API key info endpoint not available yet');
-        logger.info('You can still regenerate your key with:');
-        logger.log('  saac keys regenerate');
-      } else {
-        throw error;
-      }
-    }
-  } catch (error) {
-    logger.error(error.response?.data?.message || error.message);
-    process.exit(1);
-  }
-}
-
 module.exports = {
   regenerate,
-  show,
 };

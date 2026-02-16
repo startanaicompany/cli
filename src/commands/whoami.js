@@ -33,7 +33,7 @@ async function whoami() {
 
       logger.field('Email', user.email);
       logger.field('User ID', user.id);
-      logger.field('Verified', user.verified ? logger.chalk.green('Yes ✓') : logger.chalk.red('No ✗'));
+      logger.field('Verified', user.email_verified ? logger.chalk.green('Yes ✓') : logger.chalk.red('No ✗'));
       logger.field('Member Since', formatDate(user.created_at));
 
       logger.newline();

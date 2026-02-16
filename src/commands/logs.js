@@ -168,19 +168,25 @@ async function getRuntimeLogs(applicationUuid, applicationName, options) {
   logger.section(`Runtime Logs: ${applicationName}`);
   logger.newline();
 
+  // Follow mode - use SSE streaming
+  if (options.follow) {
+    return await streamRuntimeLogs(applicationUuid, applicationName, options);
+  }
+
+  // Regular mode - fetch logs once
   const spin = logger.spinner('Fetching runtime logs...').start();
 
   try {
     // Build query parameters
     const params = {};
-    if (options.follow) {
-      params.follow = true;
-    }
     if (options.tail) {
       params.tail = parseInt(options.tail, 10);
     }
     if (options.since) {
       params.since = options.since;
+    }
+    if (options.type) {
+      params.type = options.type;
     }
 
     const result = await api.getApplicationLogs(applicationUuid, params);
@@ -192,9 +198,16 @@ async function getRuntimeLogs(applicationUuid, applicationName, options) {
     // Display logs
     if (result.logs) {
       if (Array.isArray(result.logs)) {
-        // Logs is an array
+        // Logs is an array of objects
         result.logs.forEach(log => {
-          console.log(log);
+          if (log.message) {
+            // Format: [timestamp] [service] message
+            const timestamp = new Date(log.timestamp).toLocaleTimeString();
+            const service = logger.chalk.cyan(`[${log.service}]`);
+            console.log(`${logger.chalk.gray(timestamp)} ${service} ${log.message}`);
+          } else {
+            console.log(log);
+          }
         });
       } else if (typeof result.logs === 'string') {
         // Logs is a string (most common format from backend)
@@ -210,13 +223,6 @@ async function getRuntimeLogs(applicationUuid, applicationName, options) {
       logger.newline();
       logger.info('Make sure your application is deployed:');
       logger.log('  saac deploy');
-    }
-
-    // Note about follow mode
-    if (options.follow) {
-      logger.newline();
-      logger.info('Note: Follow mode (--follow) for live logs is not yet implemented');
-      logger.info('This command shows recent logs only');
     }
 
   } catch (error) {
@@ -237,6 +243,125 @@ async function getRuntimeLogs(applicationUuid, applicationName, options) {
     } else {
       throw error;
     }
+  }
+}
+
+/**
+ * Stream runtime logs via SSE (Server-Sent Events)
+ */
+async function streamRuntimeLogs(applicationUuid, applicationName, options) {
+  const { getUser } = require('../lib/config');
+  const user = getUser();
+  const config = require('../lib/config');
+
+  // Get base URL from config
+  const baseUrl = config.getApiUrl();
+
+  // Build query parameters
+  const params = new URLSearchParams();
+  params.set('follow', 'true');
+  if (options.tail) {
+    params.set('tail', options.tail);
+  }
+  if (options.since) {
+    params.set('since', options.since);
+  }
+  if (options.type) {
+    params.set('type', options.type);
+  }
+
+  const url = `${baseUrl}/applications/${applicationUuid}/logs?${params.toString()}`;
+
+  logger.info('Streaming live logs... (Press Ctrl+C to stop)');
+  logger.newline();
+
+  try {
+    const headers = {
+      'Accept': 'text/event-stream',
+    };
+
+    // Add authentication header
+    if (process.env.SAAC_API_KEY) {
+      headers['X-API-Key'] = process.env.SAAC_API_KEY;
+    } else if (user.sessionToken) {
+      headers['X-Session-Token'] = user.sessionToken;
+    } else if (user.apiKey) {
+      headers['X-API-Key'] = user.apiKey;
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    // Handle Ctrl+C gracefully
+    const cleanup = () => {
+      reader.cancel();
+      logger.newline();
+      logger.info('Stream closed');
+      process.exit(0);
+    };
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        // Skip empty lines and comments (keepalive)
+        if (!line.trim() || line.startsWith(':')) {
+          continue;
+        }
+
+        // Parse SSE data lines
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            // Skip connection event
+            if (data.event === 'connected') {
+              logger.success('Connected to log stream');
+              logger.newline();
+              continue;
+            }
+
+            // Display log message
+            if (data.message) {
+              const timestamp = new Date(data.timestamp).toLocaleTimeString();
+              const service = logger.chalk.cyan(`[${data.service}]`);
+              console.log(`${logger.chalk.gray(timestamp)} ${service} ${data.message}`);
+            }
+          } catch (parseError) {
+            logger.warn(`Failed to parse log entry: ${line}`);
+          }
+        }
+      }
+    }
+
+    logger.newline();
+    logger.info('Stream ended');
+
+  } catch (error) {
+    logger.error('Failed to stream logs');
+    logger.error(error.message);
+    process.exit(1);
   }
 }
 
