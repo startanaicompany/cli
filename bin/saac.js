@@ -205,8 +205,8 @@ program
 
 program
   .command('deploy')
-  .description('Deploy current application')
-  .option('-s, --stream', 'Stream build logs in real-time')
+  .description('Deploy current application (streams build logs by default)')
+  .option('--no-stream', 'Skip streaming and return immediately after queuing')
   .option('--no-cache', 'Rebuild without Docker cache (slower but fresh build)')
   .action(deploy);
 

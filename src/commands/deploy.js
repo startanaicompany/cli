@@ -30,12 +30,13 @@ async function deploy(options) {
     logger.section(`Deploying ${applicationName}`);
     logger.newline();
 
-    // Check if streaming mode
-    if (options.stream) {
+    // Default to streaming mode (agents and users need visibility)
+    // Use fire-and-forget mode only if --no-stream is explicitly set
+    if (options.stream !== false) {
       return await deployWithStreaming(applicationUuid, applicationName, options);
     }
 
-    // Fire-and-forget mode
+    // Fire-and-forget mode (only when --no-stream is used)
     const spin = logger.spinner('Queueing deployment...').start();
 
     try {
@@ -75,7 +76,7 @@ async function deploy(options) {
       logger.info('The daemon will pick up this deployment shortly and begin building.');
       logger.newline();
       logger.info('Monitor deployment progress:');
-      logger.log(`  saac deploy --stream         Stream build logs in real-time`);
+      logger.log(`  saac deploy                  Stream build logs in real-time (default)`);
       logger.log(`  saac logs --deployment       View deployment logs after completion`);
       logger.log(`  saac status                  Check application status`);
 
