@@ -8,6 +8,45 @@ const logger = require('../lib/logger');
 const { table } = require('table');
 
 /**
+ * Poll for command result with timeout
+ */
+async function pollForResult(applicationUuid, commandId, maxWaitSeconds = 120) {
+  const startTime = Date.now();
+  const pollInterval = 1000; // 1 second
+
+  while (true) {
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    if (elapsed > maxWaitSeconds) {
+      throw new Error(`Command timed out after ${maxWaitSeconds} seconds`);
+    }
+
+    try {
+      const result = await api.getDbCommandResult(applicationUuid, 'exec', commandId);
+
+      if (result.status === 'completed') {
+        return result;
+      }
+
+      if (result.status === 'failed') {
+        const errorMsg = result.result?.error || result.error || 'Command failed';
+        throw new Error(errorMsg);
+      }
+
+      // Still pending, wait and retry
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    } catch (error) {
+      // If error is not a 404 (command not found yet), rethrow
+      if (error.response?.status !== 404) {
+        throw error;
+      }
+      // 404 means command not processed yet, keep polling
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+  }
+}
+
+/**
  * Execute a command in the remote container
  * @param {string} command - Command to execute
  * @param {object} options - Command options
@@ -39,7 +78,7 @@ async function exec(command, options = {}) {
     const execRequest = {
       command,
       workdir: options.workdir || '/app',
-      timeout: options.timeout || 30
+      timeout: parseInt(options.timeout) || 30
     };
 
     // Validate timeout
@@ -56,11 +95,20 @@ async function exec(command, options = {}) {
     logger.field('  Timeout', `${execRequest.timeout}s`);
     logger.newline();
 
-    const spin = logger.spinner('Executing command in container...').start();
+    const spin = logger.spinner('Queueing command...').start();
 
+    let response;
     let result;
     try {
-      result = await api.executeCommand(applicationUuid, execRequest);
+      // Queue the command
+      response = await api.executeCommand(applicationUuid, execRequest);
+      const commandId = response.command_id;
+
+      spin.text = 'Waiting for daemon to execute command...';
+
+      // Poll for result with timeout buffer
+      result = await pollForResult(applicationUuid, commandId, execRequest.timeout + 30);
+
       spin.succeed('Command executed');
     } catch (error) {
       spin.fail('Command execution failed');
@@ -105,37 +153,50 @@ async function exec(command, options = {}) {
     logger.newline();
 
     // Display execution results
-    logger.success(`✓ Execution ID: ${result.execution_id}`);
-    logger.newline();
+    const execResult = result.result || {};
 
-    logger.field('Exit Code', result.exit_code === 0
-      ? logger.chalk.green(result.exit_code)
-      : logger.chalk.red(result.exit_code)
+    // Calculate duration
+    let duration = 'N/A';
+    if (result.created_at && result.completed_at) {
+      const start = new Date(result.created_at);
+      const end = new Date(result.completed_at);
+      duration = `${end - start}ms`;
+    }
+
+    logger.field('Exit Code', execResult.exit_code !== undefined
+      ? (execResult.exit_code === 0
+          ? logger.chalk.green(execResult.exit_code)
+          : logger.chalk.red(execResult.exit_code))
+      : 'N/A'
     );
-    logger.field('Duration', `${result.duration_ms}ms`);
-    logger.field('Started', new Date(result.started_at).toLocaleString());
-    logger.field('Completed', new Date(result.completed_at).toLocaleString());
+    logger.field('Duration', duration);
+    if (result.created_at) {
+      logger.field('Started', new Date(result.created_at).toLocaleString());
+    }
+    if (result.completed_at) {
+      logger.field('Completed', new Date(result.completed_at).toLocaleString());
+    }
 
     // Display stdout
-    if (result.stdout) {
+    if (execResult.stdout) {
       logger.newline();
       logger.info('Standard Output:');
       logger.section('─'.repeat(60));
-      console.log(result.stdout.trim());
+      console.log(execResult.stdout.trim());
       logger.section('─'.repeat(60));
     }
 
     // Display stderr
-    if (result.stderr) {
+    if (execResult.stderr) {
       logger.newline();
       logger.warn('Standard Error:');
       logger.section('─'.repeat(60));
-      console.error(result.stderr.trim());
+      console.error(execResult.stderr.trim());
       logger.section('─'.repeat(60));
     }
 
     // If no output
-    if (!result.stdout && !result.stderr) {
+    if (!execResult.stdout && !execResult.stderr) {
       logger.newline();
       logger.info('(No output)');
     }
