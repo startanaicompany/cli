@@ -34,6 +34,7 @@ const manual = require('../src/commands/manual');
 const run = require('../src/commands/run');
 const shell = require('../src/commands/shell');
 const execCmd = require('../src/commands/exec');
+const db = require('../src/commands/db');
 
 // Configure CLI
 program
@@ -265,6 +266,34 @@ program
       process.exit(1);
     }
   });
+
+// Database commands
+const dbCommand = program
+  .command('db')
+  .description('Manage application databases');
+
+dbCommand
+  .command('list')
+  .alias('ls')
+  .description('List database containers (postgres, redis, etc.)')
+  .action(db.list);
+
+dbCommand
+  .command('sql <query>')
+  .description('Execute SQL query (read-only by default)')
+  .option('--db <name>', 'Database name (default: from env vars)')
+  .option('--write', 'Allow write operations (INSERT, UPDATE, DELETE)')
+  .action(db.sql);
+
+dbCommand
+  .command('redis <command...>')
+  .description('Execute Redis command (e.g., GET mykey, HGETALL user:123)')
+  .action(db.redis);
+
+dbCommand
+  .command('info')
+  .description('Show database connection information')
+  .action(db.info);
 
 // Environment variable commands
 const envCommand = program

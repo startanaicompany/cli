@@ -319,6 +319,65 @@ async function listGitRepositories(gitHost, options = {}) {
   return response.data;
 }
 
+/**
+ * List database containers for an application
+ * @param {string} uuid - Application UUID
+ * @returns {Promise<object>} - { command_id, status }
+ */
+async function listDbContainers(uuid) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/db/containers`);
+  return response.data;
+}
+
+/**
+ * Execute SQL query on application database
+ * @param {string} uuid - Application UUID
+ * @param {object} queryData - { query, db_name?, allow_writes? }
+ * @returns {Promise<object>} - { command_id, status }
+ */
+async function executeSql(uuid, queryData) {
+  const client = createClient();
+  const response = await client.post(`/applications/${uuid}/db/sql`, queryData);
+  return response.data;
+}
+
+/**
+ * Get result of a database command (universal endpoint for all command types)
+ * @param {string} uuid - Application UUID
+ * @param {string} commandType - 'sql', 'redis', 'containers' (not used, kept for API compatibility)
+ * @param {string} commandId - Command ID
+ * @returns {Promise<object>} - { status, result, command_type, created_at, completed_at }
+ */
+async function getDbCommandResult(uuid, commandType, commandId) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/db/result/${commandId}`);
+  return response.data;
+}
+
+/**
+ * Execute Redis command on application database
+ * @param {string} uuid - Application UUID
+ * @param {object} commandData - { command }
+ * @returns {Promise<object>} - { command_id, status }
+ */
+async function executeRedis(uuid, commandData) {
+  const client = createClient();
+  const response = await client.post(`/applications/${uuid}/db/redis`, commandData);
+  return response.data;
+}
+
+/**
+ * Get database connection information
+ * @param {string} uuid - Application UUID
+ * @returns {Promise<object>} - { postgres: {...}, redis: {...} }
+ */
+async function getDbInfo(uuid) {
+  const client = createClient();
+  const response = await client.get(`/applications/${uuid}/db/info`);
+  return response.data;
+}
+
 module.exports = {
   createClient,
   login,
@@ -345,4 +404,9 @@ module.exports = {
   executeCommand,
   getExecutionHistory,
   listGitRepositories,
+  listDbContainers,
+  executeSql,
+  getDbCommandResult,
+  executeRedis,
+  getDbInfo,
 };
