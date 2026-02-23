@@ -166,8 +166,21 @@ async function sql(query, options) {
       spin.succeed('Query executed');
       logger.newline();
 
-      if (result.result && result.result.output) {
-        // Display CSV output as table
+      if (result.result && result.result.format === 'json') {
+        // New format: structured JSON with columns and rows
+        const { columns, rows } = result.result;
+
+        if (columns && rows && rows.length > 0) {
+          // Build table data with header row
+          const tableData = [columns, ...rows];
+          console.log(table(tableData));
+          logger.newline();
+          logger.info(`Rows returned: ${rows.length}`);
+        } else {
+          logger.info('Query returned no results');
+        }
+      } else if (result.result && result.result.output) {
+        // Fallback: old CSV format (if daemon parsing failed)
         const csvData = result.result.output;
         const rows = csvData.trim().split('\n').map(row => row.split(','));
 
