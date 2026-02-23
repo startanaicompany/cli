@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with the SAAC CLI codeba
 
 SAAC CLI is the official command-line interface for StartAnAiCompany.com. Built with Node.js and Commander.js, it interfaces with a wrapper API that manages Coolify deployments.
 
-**Current Version:** 1.9.2
+**Current Version:** 1.9.3
 
 ## Development Commands
 
@@ -258,7 +258,14 @@ GET    /oauth/poll/:session_id
 
 ## Release Notes
 
-### Version 1.9.2 (Current)
+### Version 1.9.3 (Current)
+**Bug Fixes:**
+- Fixed SQL query crash when querying tables with text fields containing special characters
+- Backend now returns structured JSON format (`columns` and `rows` arrays) instead of raw CSV
+- Added fallback to CSV parsing for backward compatibility
+- Handles commas, newlines, and Swedish characters in text fields correctly
+
+### Version 1.9.2
 **Bug Fixes:**
 - Fixed exec error handling to use correct backend field (`data.error` not `data.message`)
 - Improved error messages for blocked commands
