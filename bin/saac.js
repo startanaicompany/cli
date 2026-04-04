@@ -270,7 +270,18 @@ program
 // Database commands
 const dbCommand = program
   .command('db')
-  .description('Manage application databases');
+  .description('Manage application databases')
+  .addHelpText('after', `
+Prerequisites:
+  Your docker-compose.yml must include 'postgres' and 'redis' services.
+  Required structure: https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml
+
+Examples:
+  saac db list                     List database containers
+  saac db sql "SELECT NOW()"       Execute SQL query
+  saac db redis PING               Execute Redis command
+  saac db info                     Show connection info
+`);
 
 dbCommand
   .command('list')

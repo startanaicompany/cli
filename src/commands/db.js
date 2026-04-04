@@ -85,8 +85,10 @@ async function list(options) {
         const containers = result.result.containers;
 
         if (containers.length === 0) {
-          logger.info('No database containers found');
-          return;
+          logger.error('No database containers found');
+          logger.info('Your docker-compose.yml must include postgres and redis services.');
+          logger.info('Required structure: https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml');
+          process.exit(1);
         }
 
         // Display as table

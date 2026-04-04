@@ -24,6 +24,90 @@
 npm install -g @startanaicompany/cli
 ```
 
+## Application Structure
+
+SAAC applications require a standardized Docker Compose setup with three services: **app**, **postgres**, and **redis**.
+
+### Required docker-compose.yml
+
+Your application **must** include these services for `saac db` commands to work:
+
+**📄 Reference:** https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml
+
+**Required services:**
+- `app` - Your Node.js application (exposes port 3000)
+- `postgres` - PostgreSQL 16 database
+- `redis` - Redis 7 cache
+
+**Key requirements:**
+- Service names must be exactly: `app`, `postgres`, `redis`
+- App must include environment variables: `POSTGRES_HOST=postgres`, `REDIS_HOST=redis`
+- All services must have health checks
+- App must depend on postgres and redis being healthy
+
+### Example docker-compose.yml
+
+```yaml
+services:
+  app:
+    build: .
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 2
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 3
+
+volumes:
+  postgres-data:
+  redis-data:
+```
+
+**Full configuration:** https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml
+
+### Why These Services?
+
+When you run `saac db sql` or `saac db redis`, the CLI connects to these containers within your application's Docker network. The standardized naming (`postgres`, `redis`) allows SAAC to automatically discover and manage your databases.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -39,7 +123,8 @@ saac login -e user@example.com -k cw_your_api_key_here
 # 4. Connect your Git account (OAuth - required!)
 saac git connect
 
-# 5. Create a new application
+# 5. Create a new application (requires docker-compose.yml with postgres + redis)
+# Template: https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml
 saac create my-app -s myapp -r git@git.startanaicompany.com:user/repo.git
 
 # 6. Deploy!
@@ -1640,6 +1725,14 @@ postgresql://user:pass@db.internal:5432/myapp
 ---
 
 ## Database Management
+
+**Prerequisites:** Your application must follow the SAAC docker-compose.yml structure with `postgres` and `redis` services.
+
+👉 **Required configuration:** https://git.startanaicompany.com/StartAnAiCompanyTemplates/template_001/src/branch/master/docker-compose.yml
+
+The `saac db` commands connect to these standardized service names in your Docker network.
+
+---
 
 Manage and query your application's databases directly from the CLI.
 
